@@ -38,7 +38,15 @@ class SynologyAuthBackend(BaseBackend):
             
             # Usar servicio con config temporal
             service = ConnectionService(temp_config)
+            
+            # Log detallado antes de autenticar
+            logger.info(f"🔐 Intentando autenticar usuario: {username}")
+            logger.info(f"📡 NAS: {temp_config.get_base_url()}")
+            
             result = service.authenticate()
+            
+            # Log detallado del resultado
+            logger.info(f"📊 Resultado de autenticación: {result}")
             
             if result['success']:
                 logger.info(f"Usuario {username} autenticado exitosamente en Synology")

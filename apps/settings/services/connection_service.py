@@ -158,7 +158,7 @@ class ConnectionService:
         try:
             # 1. Obtener ruta correcta
             auth_info = self._get_api_info('SYNO.API.Auth')
-            api_path = auth_info.get('path', 'auth.cgi')
+            api_path = auth_info.get('path', 'entry.cgi')
             max_ver = auth_info.get('maxVersion', 3)
             
             # Synology Auth v3 es lo estándar para File Station, pero no pasarnos de 3 si reporta más
@@ -217,7 +217,7 @@ class ConnectionService:
         """Cierra sesión usando la ruta correcta"""
         try:
             auth_info = self._get_api_info('SYNO.API.Auth')
-            api_path = auth_info.get('path', 'auth.cgi')
+            api_path = auth_info.get('path', 'entry.cgi')
             
             url = f"{self.get_base_url()}/webapi/{api_path}"
             params = {

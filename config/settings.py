@@ -56,6 +56,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'apps.core',
     'apps.settings',
+    'apps.accounts',  # Sistema de autenticación con Synology
 ]
 
 # Apps solo para DEBUG, y no para produccion
@@ -131,6 +132,17 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+]
+
+# =============================================================================
+# AUTENTICACIÓN
+# =============================================================================
+
+# Backends de autenticación
+# El orden importa: Django intentará cada backend en orden hasta que uno funcione
+AUTHENTICATION_BACKENDS = [
+    'apps.accounts.backends.synology_backend.SynologyAuthBackend',  # Primero intenta Synology
+    'django.contrib.auth.backends.ModelBackend',  # Fallback a DB local si falla
 ]
 
 
@@ -215,7 +227,17 @@ LOGGING = {
             'handlers': ['file_error'],
             'level': 'ERROR',
             'propagate': False,
-        }
+        },
+        'apps.accounts': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apps.settings': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }
 
