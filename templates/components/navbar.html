@@ -1,0 +1,123 @@
+<!-- 
+    NAVBAR REUTILIZABLE
+    
+    Contexto opcional:
+    - page_title: Título de la página actual
+    - breadcrumbs: Lista para breadcrumbs (se pasa a breadcrumbs.html)
+    - show_search: Boolean para mostrar/ocultar barra de búsqueda
+-->
+
+<!-- Navbar superior - Claro, limpio, profesional -->
+<header class="bg-white border-b border-gray-200 h-16 fixed top-0 right-0 left-64 z-30 shadow-sm">
+    <div class="h-full px-6 flex items-center justify-between">
+        
+        <!-- Lado izquierdo: Breadcrumbs o título -->
+        <div class="flex items-center gap-4 flex-1">
+            {% if breadcrumbs %}
+                {% include 'components/breadcrumbs.html' with breadcrumbs=breadcrumbs %}
+            {% else %}
+                <h2 class="text-xl font-semibold text-gray-800">
+                    {{ page_title|default:"Dashboard" }}
+                </h2>
+            {% endif %}
+        </div>
+
+        <!-- Lado derecho: Búsqueda, notificaciones, ayuda, usuario -->
+        <div class="flex items-center gap-4">
+            
+            <!-- Barra de búsqueda (opcional) -->
+            {% if show_search %}
+                <div class="relative hidden md:block">
+                    <input type="search" 
+                           placeholder="Buscar..." 
+                           class="w-64 pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                </div>
+            {% endif %}
+
+            <!-- Icono de notificaciones -->
+            <button class="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <i class="fas fa-bell text-lg"></i>
+                <!-- Badge de notificaciones pendientes -->
+                <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            <!-- Icono de ayuda -->
+            <a href="#" 
+               title="Ayuda"
+               class="p-2 text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <i class="fas fa-question-circle text-lg"></i>
+            </a>
+
+            <!-- Separador -->
+            <div class="h-8 w-px bg-gray-300"></div>
+
+            <!-- Usuario autenticado - Dropdown -->
+            {% if user.is_authenticated %}
+                <div class="relative" x-data="{ open: false }">
+                    <!-- Botón usuario -->
+                    <button @click="open = !open" 
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <!-- Avatar -->
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
+                            {{ user.username|slice:":2"|upper }}
+                        </div>
+                        <!-- Nombre y rol -->
+                        <div class="hidden lg:block text-left">
+                            <p class="text-sm font-medium text-gray-800">{{ user.get_full_name|default:user.username }}</p>
+                            <p class="text-xs text-gray-500">
+                                {% if user.is_superuser %}
+                                    Administrador
+                                {% else %}
+                                    Usuario
+                                {% endif %}
+                            </p>
+                        </div>
+                        <!-- Icono dropdown -->
+                        <i class="fas fa-chevron-down text-xs text-gray-500" :class="{ 'rotate-180': open }"></i>
+                    </button>
+
+                    <!-- Dropdown menu -->
+                    <div x-show="open" 
+                         @click.away="open = false"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                         style="display: none;">
+                        
+                        <!-- Perfil -->
+                        <a href="#" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <i class="fas fa-user w-4"></i>
+                            <span>Mi Perfil</span>
+                        </a>
+                        
+                        <!-- Settings -->
+                        <a href="{% url 'settings:config' %}" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <i class="fas fa-cog w-4"></i>
+                            <span>Configuración</span>
+                        </a>
+                        
+                        <div class="border-t border-gray-200 my-1"></div>
+                        
+                        <!-- Logout -->
+                        <a href="{% url 'accounts:logout' %}" class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                            <i class="fas fa-sign-out-alt w-4"></i>
+                            <span>Cerrar Sesión</span>
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Login button si no está autenticado -->
+                <a href="{% url 'accounts:login' %}" 
+                   class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+                    Iniciar Sesión
+                </a>
+            {% endif %}
+
+        </div>
+    </div>
+</header>
+
+<!-- Spacer para evitar que el contenido quede debajo del navbar -->
+<div class="h-16"></div>

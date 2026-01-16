@@ -1,0 +1,41 @@
+<!-- 
+    BREADCRUMBS REUTILIZABLES
+    
+    Contexto requerido:
+    - breadcrumbs: Lista de diccionarios con estructura:
+        [
+            {'name': 'Home', 'url': 'core:dashboard'},
+            {'name': 'Usuarios', 'url': 'users:list'},
+            {'name': 'Crear Usuario'}  # Último sin URL (página actual)
+        ]
+    
+    Ejemplo de uso en view:
+        context['breadcrumbs'] = [
+            {'name': 'Inicio', 'url': 'core:dashboard'},
+            {'name': 'Configuración', 'url': 'settings:config'},
+            {'name': 'NAS Config'}
+        ]
+-->
+
+<nav aria-label="Breadcrumb" class="flex items-center">
+    <ol class="flex items-center gap-2 text-sm">
+        {% for item in breadcrumbs %}
+            <li class="flex items-center gap-2">
+                {% if not forloop.last %}
+                    <!-- Items intermedios (con enlace) -->
+                    <a href="{% url item.url %}" 
+                       class="text-gray-600 hover:text-indigo-600 transition-colors font-medium">
+                        {{ item.name }}
+                    </a>
+                    <!-- Separador -->
+                    <i class="fas fa-chevron-right text-xs text-gray-400"></i>
+                {% else %}
+                    <!-- Último item (sin enlace, página actual) -->
+                    <span class="text-gray-900 font-semibold">
+                        {{ item.name }}
+                    </span>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ol>
+</nav>

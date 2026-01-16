@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-white">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración Inicial - NAS Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style> 
+        body { font-family: 'Inter', sans-serif; } 
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="h-full" x-data="{ loading: false }">
+
+    <!-- Loading Overlay Reutilizable -->
+    <div x-show="loading" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm transition-opacity">
+        {% include "components/loading.html" %}
+    </div>
+
+    <div class="flex h-full">
+        <!-- Columna Izquierda: Branding (Estático, oscuro) -->
+        <div class="hidden lg:flex w-1/2 bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-900 items-center justify-center p-12 relative overflow-hidden">
+            <!-- Decorative Background Elements -->
+            <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
+            <div class="absolute -top-24 -left-24 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl"></div>
+            
+            <div class="relative z-10 max-w-lg text-center text-white">
+                <div class="inline-flex items-center justify-center w-24 h-24 bg-white/10 backdrop-blur-md rounded-2xl mb-8 border border-white/10 shadow-2xl ring-1 ring-white/20">
+                    <i class="fas fa-server text-4xl text-indigo-300"></i>
+                </div>
+                <h1 class="text-4xl font-bold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-white">
+                    NAS Manager
+                </h1>
+                <p class="text-lg text-slate-300 leading-relaxed mb-8">
+                    Gestión centralizada, segura y profesional de tu almacenamiento Synology. Configura la conexión una vez y accede a todo.
+                </p>
+                
+                <!-- Features List -->
+                <div class="text-left space-y-4 bg-white/5 p-6 rounded-xl border border-white/5 backdrop-blur-sm">
+                    <div class="flex items-center gap-3 text-slate-300">
+                        <i class="fas fa-check-circle text-indigo-400"></i>
+                        <span>Conexión cifrada directa (Sin intermediarios)</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-slate-300">
+                        <i class="fas fa-check-circle text-indigo-400"></i>
+                        <span>Validación automática de API</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-slate-300">
+                        <i class="fas fa-check-circle text-indigo-400"></i>
+                        <span>Gestión de sesiones segura</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Formulario (Scrollable si es necesario en pantallas pequeñas) -->
+        <div class="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-12 lg:p-16 bg-gray-50 overflow-y-auto">
+            <div class="w-full max-w-md space-y-8">
+                
+                <!-- Header Mobile (Visible solo en mobile) -->
+                <div class="text-center lg:hidden mb-8">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-lg mb-4 text-white">
+                        <i class="fas fa-server text-xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900">NAS Manager</h2>
+                </div>
+
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-gray-900">Configuración de Conexión</h2>
+                    <p class="mt-2 text-sm text-gray-600">
+                        Ingresa los detalles de tu NAS. Validaremos la conexión antes de guardar.
+                    </p>
+                </div>
+
+                <form method="post" class="mt-8 space-y-6" @submit="loading = true">
+                    {% csrf_token %}
+
+                    <!-- Alerts de Error -->
+                    {% if form.non_field_errors %}
+                        <div class="rounded-md bg-red-50 p-4 border border-red-200">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-circle text-red-500"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-red-800">Error de Conexión</h3>
+                                    <div class="mt-2 text-sm text-red-700">
+                                        {{ form.non_field_errors.0 }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                        <!-- Network Settings -->
+                        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6 border-b border-gray-100 pb-6">
+                            <div class="sm:col-span-4">
+                                <label class="block text-sm font-medium text-gray-700">IP / Host</label>
+                                <div class="mt-1">
+                                    {{ form.host }}
+                                </div>
+                                {% if form.host.errors %}<p class="mt-1 text-xs text-red-600">{{ form.host.errors.0 }}</p>{% endif %}
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700">Puerto</label>
+                                <div class="mt-1">
+                                    {{ form.port }}
+                                </div>
+                                {% if form.port.errors %}<p class="mt-1 text-xs text-red-600">{{ form.port.errors.0 }}</p>{% endif %}
+                            </div>
+
+                            <div class="sm:col-span-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Protocolo</label>
+                                {{ form.protocol }}
+                            </div>
+                        </div>
+
+                        <!-- Credentials -->
+                        <div class="space-y-4">
+                            <div class="bg-indigo-50 p-3 rounded-lg flex items-start gap-3">
+                                <i class="fas fa-info-circle text-indigo-600 mt-0.5"></i>
+                                <p class="text-xs text-indigo-800">
+                                    Credenciales administrativas requeridas para la configuración inicial.
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Usuario Admin</label>
+                                <div class="mt-1 relative">
+                                    {{ form.admin_username }}
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">Usuario con permisos de administrador en el NAS.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Contraseña</label>
+                                <div class="mt-1 relative">
+                                    <input type="password" name="admin_password" class="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors" placeholder="Contraseña requerida">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">Contraseña del usuario administrador del NAS.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs text-gray-400 flex gap-2">
+                            <i class="fas fa-shield-alt"></i> AES-256 Encrypted
+                        </div>
+                        
+                        <!-- Using Primary Button Style logic -->
+                        <button type="submit" 
+                            class="inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 py-2.5 px-6 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200">
+                            Guardar y Conectar <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!--
+    BASE LAYOUT - Plantilla base del sistema
+    
+    Este template integra todos los componentes reutilizables:
+    - Sidebar
+    - Navbar
+    - Footer
+    - Alerts
+    - Scripts
+    
+    Bloques disponibles para extender:
+    - title: Título de la página (<title>)
+    - extra_css: CSS adicional específico de página
+    - content: Contenido principal de la página
+    - extra_js: JavaScript adicional específico de página
+    
+    Contexto esperado por los componentes:
+    - menu_items: Para el sidebar
+    - breadcrumbs: Para el navbar (opcional)
+    - page_title: Título de la página (opcional)
+    - user: Usuario autenticado (Django lo provee automáticamente)
+    
+    Uso en templates hijos:
+    {# extends 'layouts/base.html' #}
+    
+    {# block title #}Mi Página{# endblock #}
+    
+    {# block content #}
+        <h1>Contenido aquí</h1>
+    {# endblock #}
+-->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    
+    <!-- Title -->
+    <title>{% block title %}Dashboard{% endblock %} | NAS Manager</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{% static 'css/dist/styles.css' %}">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/message.css' %}">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts (Inter - tipografía profesional) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SweetAlert2 para modales elegantes -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Block para CSS adicional -->
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        /* Tipografía base */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        /* Scrollbar personalizada */
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+</head>
+<body class="h-full bg-gray-50 antialiased">
+    
+    <!-- Layout principal con Flexbox -->
+    <div class="flex h-full">
+        
+        <!-- Sidebar -->
+        {% include 'partials/sidebar.html' with menu_items=menu_items %}
+        
+        <!-- Área de contenido principal -->
+        <div class="flex-1 flex flex-col min-w-0">
+            
+            <!-- Navbar -->
+            {% include 'components/navbar.html' with page_title=page_title breadcrumbs=breadcrumbs %}
+            
+            <!-- Contenido principal -->
+            <main class="flex-1 overflow-y-auto">
+                <div class="container mx-auto px-6 py-6">
+                    
+                    <!-- Mensajes de Django -->
+                    {% include 'fragments/alerts.html' %}
+                    
+                    <!-- Contenido de la página -->
+                    {% block content %}
+                        <!-- El contenido de cada página va aquí -->
+                    {% endblock %}
+                    
+                </div>
+            </main>
+            
+            <!-- Footer -->
+            {% include 'partials/footer.html' %}
+            
+        </div>
+    </div>
+    
+    <!-- Scripts globales -->
+    {% include 'partials/scripts.html' %}
+    
+    <!-- Block para JS adicional -->
+    {% block extra_js %}{% endblock %}
+    
+</body>
+</html>

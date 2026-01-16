@@ -1,0 +1,28 @@
+{% if messages %}
+<div id="messagesContainer" class="messages-container">
+    {% for message in messages %}
+    <div id="message-{{ forloop.counter }}"
+         class="message-alert message-{{ message.tags }}"
+         data-message-id="{{ forloop.counter }}" 
+         style="opacity: 0">
+        <div class="message-decoration"></div>
+        <div class="message-content">
+            <div class="message-body">
+                <div class="message-icon">
+                    <div class="icon-bg icon-{{ message.tags }}">
+                        <i class="fas fa-{% if message.tags == 'success' %}check{% elif message.tags == 'error' %}times{% elif message.tags == 'warning' %}exclamation{% else %}info{% endif %}"></i>
+                    </div>
+                </div>
+                <div class="message-text">
+                    <p>{{ message }}</p>
+                </div>
+            </div>
+            <button onclick="closeMessage({{ forloop.counter }})" class="close-btn" aria-label="Cerrar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="progress-bar"></div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

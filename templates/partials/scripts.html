@@ -1,0 +1,41 @@
+<!-- 
+    SCRIPTS BASE
+    
+    Este partial incluye todos los archivos JavaScript globales.
+    NO debe contener código JS inline.
+    
+    Uso en base.html:
+    {# include 'partials/scripts.html' #}
+    
+    IMPORTANTE:
+    - Solo incluir archivos .js externos
+    - Scripts específicos de página van en {# block extra_js #}
+    - Mantener el orden: vendors primero, luego custom
+-->
+{% load static %}
+
+<!-- jQuery (si se necesita para plugins legacy) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" 
+        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" 
+        crossorigin="anonymous"></script>
+
+<!-- Alpine.js (para interactividad simple sin JS frameworks) -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Font Awesome (iconos) -->
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+<!-- Chart.js (para gráficos en dashboard) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Script de mensajes (alerts) -->
+<script src="{% static 'js/message.js' %}"></script>
+
+<!-- Scripts de sweet Alert para alertas personalizadas -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- CDN de Tailwind como respaldo -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Scripts globales custom -->
+{% comment %} <script src="{% static 'js/main.js' %}"></script> {% endcomment %}

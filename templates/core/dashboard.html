@@ -1,0 +1,29 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    
+    <!-- Header del Dashboard -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-semibold text-gray-900">Dashboard</h1>
+            <p class="text-xs text-gray-600 mt-0.5">Resumen general del sistema NAS</p>
+        </div>
+        <div>
+            {% include 'components/buttons/btn_primary.html' with text='Actualizar' icon='sync-alt' type='button' %}
+        </div>
+    </div>
+
+    
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Aquí puedes añadir JS específico del dashboard
+    // Por ejemplo: actualización automática de métricas via AJAX
+</script>
+{% endblock %}

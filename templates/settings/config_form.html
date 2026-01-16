@@ -1,0 +1,204 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Configuración NAS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <div class="bg-white rounded-sm shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-lg font-semibold text-gray-900">Configuración del NAS Synology</h1>
+                <p class="text-xs text-gray-600 mt-0.5">Configura la conexión con tu dispositivo NAS</p>
+            </div>
+            <div class="flex items-center gap-2">
+                {% include 'components/buttons/btn_success.html' with text='Probar Conexión' icon='plug' type='button' onclick='testConnection()' id='testBtn' %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Configuración -->
+    <div class="bg-white rounded-sm shadow-sm">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-base font-semibold text-gray-900">Datos de Conexión</h2>
+            <p class="text-xs text-gray-600 mt-0.5">
+                Ingresa los datos de tu NAS Synology. La IP y puerto se usarán dinámicamente en todas las peticiones.
+            </p>
+        </div>
+        
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <!-- Grid de 2 columnas -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Host -->
+                <div>
+                    <label for="{{ form.host.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.host.label }}
+                    </label>
+                    {{ form.host }}
+                    {% if form.host.help_text %}
+                        <p class="mt-1 text-xs text-gray-500">{{ form.host.help_text }}</p>
+                    {% endif %}
+                    {% if form.host.errors %}
+                        <p class="mt-1 text-xs text-red-600">{{ form.host.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Puerto -->
+                <div>
+                    <label for="{{ form.port.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.port.label }}
+                    </label>
+                    {{ form.port }}
+                    {% if form.port.help_text %}
+                        <p class="mt-1 text-xs text-gray-500">{{ form.port.help_text }}</p>
+                    {% endif %}
+                    {% if form.port.errors %}
+                        <p class="mt-1 text-xs text-red-600">{{ form.port.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Protocolo -->
+                <div>
+                    <label for="{{ form.protocol.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.protocol.label }}
+                    </label>
+                    {{ form.protocol }}
+                    {% if form.protocol.errors %}
+                        <p class="mt-1 text-xs text-red-600">{{ form.protocol.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Usuario Admin -->
+                <div>
+                    <label for="{{ form.admin_username.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.admin_username.label }}
+                    </label>
+                    {{ form.admin_username }}
+                    {% if form.admin_username.help_text %}
+                        <p class="mt-1 text-xs text-gray-500">{{ form.admin_username.help_text }}</p>
+                    {% endif %}
+                    {% if form.admin_username.errors %}
+                        <p class="mt-1 text-xs text-red-600">{{ form.admin_username.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+            </div>
+
+            <!-- Contraseña (ancho completo) -->
+            <div>
+                <label for="{{ form.admin_password.id_for_label }}" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <input type="password" name="admin_password" id="{{ form.admin_password.id_for_label }}" 
+                           class="block w-full pr-10 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                           placeholder="•••••••• (Dejar en blanco para mantener la actual)">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i class="fas fa-key text-gray-400"></i>
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Solo llena este campo si deseas cambiar la contraseña almacenada.</p>
+            </div>
+
+            <!-- URL Dinámica - Info -->
+            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-info-circle text-indigo-600 mt-0.5"></i>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-indigo-900">URL Base Generada Dinámicamente</p>
+                        <p class="text-sm text-indigo-700 mt-1" id="dynamicUrl">
+                            {{ object.get_base_url }}
+                        </p>
+                        <p class="text-xs text-indigo-600 mt-2">
+                            Esta URL se construye automáticamente y se usa en todas las peticiones al NAS.
+                            <strong>Nunca se hardcodea en el código</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                {% url 'core:dashboard' as dashboard_url %}
+                {% include 'components/buttons/btn_secondary.html' with text='Cancelar' icon='times' url=dashboard_url %}
+                {% include 'components/buttons/btn_primary.html' with text='Guardar Configuración' icon='save' type='submit' %}
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Info adicional -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
+            <div>
+                <p class="text-sm font-medium text-yellow-900">Importante</p>
+                <ul class="text-sm text-yellow-700 mt-2 space-y-1 list-disc list-inside">
+                    <li>Asegúrate de que el NAS esté encendido y accesible en la red</li>
+                    <li>El puerto por defecto es 5000 para HTTP y 5001 para HTTPS</li>
+                    <li>Usa HTTPS siempre que sea posible para mayor seguridad</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function testConnection() {
+        const btn = document.getElementById('testBtn');
+        const originalHtml = btn.innerHTML;
+        
+        // Mostrar loading
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Probando...';
+        
+        // Hacer petición AJAX
+        fetch("{% url 'settings:test_connection' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(data.message, 'success');
+            } else {
+                showMessage(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            showMessage('Error al probar conexión: ' + error, 'error');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+    }
+    
+    // Actualizar URL dinámica cuando cambian los campos
+    document.addEventListener('DOMContentLoaded', function() {
+        const protocolField = document.querySelector('select[name="protocol"]');
+        const hostField = document.querySelector('input[name="host"]');
+        const portField = document.querySelector('input[name="port"]');
+        const urlDisplay = document.getElementById('dynamicUrl');
+        
+        function updateUrl() {
+            const protocol = protocolField.value || 'https';
+            const host = hostField.value || '192.168.1.100';
+            const port = portField.value || '5000';
+            urlDisplay.textContent = `${protocol}://${host}:${port}`;
+        }
+        
+        if (protocolField) protocolField.addEventListener('change', updateUrl);
+        if (hostField) hostField.addEventListener('input', updateUrl);
+        if (portField) portField.addEventListener('input', updateUrl);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,250 @@
+/* Estilos para mensajes - Versión mejorada y responsiva */
+.messages-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: calc(100% - 40px); /* Adaptable al ancho de pantalla con margen */
+    max-width: 400px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none; /* Permite hacer clic en elementos debajo */
+}
+
+/* Ajustes responsivos para móviles */
+@media (max-width: 640px) {
+    .messages-container {
+        top: 10px;
+        right: 10px;
+        width: calc(100% - 20px);
+        max-width: 100%;
+        gap: 8px;
+    }
+}
+
+/* Los elementos interactivos dentro de los mensajes deben ser clickeables */
+.close-btn {
+    pointer-events: auto;
+}
+
+/* Estilos base para las alertas de mensajes */
+.message-alert {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: auto;
+}
+
+/* Contenido principal del mensaje */
+.message-content {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 16px;
+}
+
+.message-body {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex: 1;
+    min-width: 0; /* Evita desbordamiento en dispositivos pequeños */
+}
+
+/* Ajustes responsivos para el contenido */
+@media (max-width: 640px) {
+    .message-content {
+        padding: 10px 12px;
+    }
+    
+    .message-body {
+        gap: 10px;
+    }
+}
+
+/* Icono del mensaje */
+.message-icon {
+    flex-shrink: 0;
+}
+
+.icon-bg {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-bg i {
+    font-size: 0.9rem;
+    color: #ffffff;
+}
+
+/* Ajustes responsivos para iconos en móviles */
+@media (max-width: 640px) {
+    .icon-bg {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .icon-bg i {
+        font-size: 0.8rem;
+    }
+}
+
+/* Variantes de colores para los iconos usando la paleta de Tailwind */
+.icon-success {
+    background-color: #10b981; /* success.DEFAULT de tailwind-config */
+}
+
+.icon-error {
+    background-color: #ef4444; /* danger.DEFAULT de tailwind-config */
+}
+
+.icon-warning {
+    background-color: #f97316; /* warning.DEFAULT de tailwind-config */
+}
+
+.icon-info {
+    background-color: #6366f1; /* primary.DEFAULT de tailwind-config */
+}
+
+/* Texto del mensaje */
+.message-text {
+    font-size: 0.95rem;
+    color: #333;
+    flex: 1;
+    min-width: 0; /* Permitir que el texto se ajuste */
+    overflow: hidden; /* Evita desbordamiento */
+}
+
+.message-text p {
+    margin: 0;
+    line-height: 1.4;
+    overflow-wrap: break-word; /* Rompe palabras largas si es necesario */
+    white-space: normal; /* Permite múltiples líneas */
+}
+
+/* Ajustes responsivos para el texto */
+@media (max-width: 640px) {
+    .message-text {
+        font-size: 0.85rem;
+    }
+    
+    .message-text p {
+        line-height: 1.3;
+    }
+}
+
+/* Botón de cerrar */
+.close-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 5px;
+    margin-left: 8px;
+    border-radius: 50%;
+    height: 24px;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.close-btn:hover {
+    background-color: #f0f0f0;
+    color: #555;
+}
+
+/* Ajustes responsivos para el botón cerrar */
+@media (max-width: 640px) {
+    .close-btn {
+        height: 22px;
+        width: 22px;
+        font-size: 0.8rem;
+        padding: 3px;
+    }
+}
+
+/* Barra de progreso para la autodesmisión */
+.progress-bar {
+    height: 3px;
+    width: 100%;
+    background-color: #f0f0f0;
+    position: relative;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(0,0,0,0.05) 100%);
+    animation: progress-animation 6s linear forwards;
+}
+
+@keyframes progress-animation {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+/* Decoración lateral según tipo de mensaje */
+.message-decoration {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+/* Colores de decoración por tipo usando la paleta de Tailwind */
+.message-success .message-decoration {
+    background-color: #10b981; /* success.DEFAULT */
+}
+
+.message-error .message-decoration {
+    background-color: #ef4444; /* danger.DEFAULT */
+}
+
+.message-warning .message-decoration {
+    background-color: #f97316; /* warning.DEFAULT */
+}
+
+.message-info .message-decoration {
+    background-color: #6366f1; /* primary.DEFAULT */
+}
+
+/* Animaciones */
+@keyframes message-slide-in {
+    from { 
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-slideOutRight {
+    animation: message-slide-out 0.4s forwards;
+}
+
+@keyframes message-slide-out {
+    to {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+}

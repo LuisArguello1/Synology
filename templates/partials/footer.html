@@ -1,0 +1,34 @@
+<!-- 
+    FOOTER REUTILIZABLE
+    
+    Uso:
+    {# include 'partials/footer.html' #}
+    
+    Footer simple y discreto para sistema administrativo
+-->
+
+<footer class="bg-white border-t border-gray-200 mt-auto">
+    <div class="px-6 py-4">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-600">
+            
+            <!-- Izquierda: Copyright -->
+            <div class="text-center md:text-left">
+                <p>&copy; {{ current_year|default:"2026" }} NAS Manager. Todos los derechos reservados.</p>
+            </div>
+
+            <!-- Centro: Links rápidos -->
+            <div class="flex items-center gap-4">
+                <a href="#" class="hover:text-indigo-600 transition-colors">Documentación</a>
+                <span class="text-gray-300">|</span>
+                <a href="#" class="hover:text-indigo-600 transition-colors">Soporte</a>
+                <span class="text-gray-300">|</span>
+                <a href="#" class="hover:text-indigo-600 transition-colors">API</a>
+            </div>
+
+            <!-- Derecha: Versión -->
+            <div class="text-center md:text-right">
+                <p class="text-gray-500">Versión {{ app_version|default:"1.0.0" }}</p>
+            </div>
+        </div>
+    </div>
+</footer>

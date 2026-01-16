@@ -1,0 +1,464 @@
+# 📡 API de Synology DSM - Guía de Integración
+
+## Contexto del Proyecto
+
+Sistema web Django que se comunica con un NAS Synology a través de su API REST oficial.
+
+**Stack Tecnológico:**
+- Backend: Django (Python)
+- NAS: Synology RS4017xs+ (DSM 7.0+)
+- API: Synology DSM Web API
+- Comunicación: HTTP/HTTPS con autenticación por sesión (SID + SynoToken)
+
+---
+
+## 🔐 1. FLUJO DE AUTENTICACIÓN
+
+### Login (Obtener SID y SynoToken)
+
+**Endpoint:** `/webapi/entry.cgi`  
+**Método:** `GET`
+
+```python
+params = {
+    'api': 'SYNO.API.Auth',
+    'version': 6,
+    'method': 'login',
+    'account': 'usuario',
+    'passwd': 'contraseña',
+    'session': 'FileStation',
+    'format': 'sid',                    # Devuelve SID en JSON (no cookie)
+    'enable_syno_token': 'yes'          # Genera token CSRF
+}
+```
+
+**Respuesta exitosa:**
+```json
+{
+    "success": true,
+    "data": {
+        "sid": "K5LlN6r-zkpxg61He2eSS2z...",
+        "synotoken": "03yhfxW4syRQw",
+        "did": "8nC0nhJjgiE1XTqM6..."
+    }
+}
+```
+
+**Códigos de error:**
+- `400`: Usuario o contraseña incorrectos
+- `403`: Requiere autenticación 2FA
+- `407`: IP bloqueada
+
+### Uso de Credenciales
+
+**TODAS las peticiones autenticadas deben incluir:**
+```python
+params = {
+    'api': 'SYNO.FileStation.List',
+    'version': 2,
+    'method': 'list_share',
+    '_sid': sid,              # ← OBLIGATORIO
+    'SynoToken': syno_token   # ← OBLIGATORIO
+}
+```
+
+### Logout
+
+```python
+params = {
+    'api': 'SYNO.API.Auth',
+    'version': 6,
+    'method': 'logout',
+    '_sid': sid
+}
+```
+
+---
+
+## 📚 2. APIS PRINCIPALES
+
+### SYNO.Core.User (Gestión de Usuarios)
+
+#### Listar Usuarios
+```python
+{
+    'api': 'SYNO.Core.User',
+    'version': 1,
+    'method': 'list',
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+#### Crear Usuario
+```python
+{
+    'api': 'SYNO.Core.User',
+    'version': 1,
+    'method': 'create',
+    'name': 'nuevo_usuario',
+    'password': 'contraseña',
+    'description': 'Descripción opcional',
+    'email': 'email@ejemplo.com',
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+#### Eliminar Usuario
+```python
+{
+    'api': 'SYNO.Core.User',
+    'version': 1,
+    'method': 'delete',
+    'name': 'usuario_a_eliminar',
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+---
+
+### SYNO.FileStation.* (Gestión de Archivos)
+
+#### Listar Carpetas Compartidas
+```python
+{
+    'api': 'SYNO.FileStation.List',
+    'version': 2,
+    'method': 'list_share',
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+#### Listar Archivos en Carpeta
+```python
+{
+    'api': 'SYNO.FileStation.List',
+    'version': 2,
+    'method': 'list',
+    'folder_path': '/Compartido',
+    'additional': '["real_path","size","owner","time"]',  # JSON string
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+#### Crear Carpeta
+```python
+{
+    'api': 'SYNO.FileStation.CreateFolder',
+    'version': 2,
+    'method': 'create',
+    'folder_path': '["/Compartido"]',  # JSON array como string
+    'name': '["nueva_carpeta"]',       # JSON array como string
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+#### Eliminar Archivo/Carpeta
+```python
+{
+    'api': 'SYNO.FileStation.Delete',
+    'version': 2,
+    'method': 'delete',
+    'path': '["/Compartido/archivo.txt"]',  # JSON array
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+---
+
+### Subir Archivos (POST multipart/form-data)
+
+**IMPORTANTE:** Esta operación usa `POST`, no `GET`
+
+```python
+url = f"{base_url}/webapi/entry.cgi"
+
+data = {
+    'api': 'SYNO.FileStation.Upload',
+    'version': 2,
+    'method': 'upload',
+    'path': '/Compartido',           # Carpeta destino
+    'create_parents': 'true',
+    'overwrite': 'true',
+    'SynoToken': token
+}
+
+files = {'file': open('archivo.pdf', 'rb')}
+cookies = {'id': sid}  # SID va en cookie para uploads
+
+response = requests.post(url, data=data, files=files, cookies=cookies, verify=False)
+```
+
+---
+
+### SYNO.Core.Share.Permission (Gestión de Permisos)
+
+```python
+{
+    'api': 'SYNO.Core.Share.Permission',
+    'version': 1,
+    'method': 'set',
+    'name': 'Compartido',  # Nombre de carpeta compartida (sin /)
+    'user_group': '[{"name":"usuario","is_group":false,"permission":"RW"}]',
+    '_sid': sid,
+    'SynoToken': token
+}
+```
+
+**Permisos disponibles:**
+- `RW`: Lectura y escritura
+- `RO`: Solo lectura
+- [NA](file:///d:/NasSystem/apps/settings/models.py#10-115): Sin acceso
+
+---
+
+## 📊 3. ESTRUCTURA DE RESPUESTAS
+
+### Respuesta Exitosa
+```json
+{
+    "success": true,
+    "data": {
+        // ... datos específicos
+    }
+}
+```
+
+### Respuesta con Error
+```json
+{
+    "success": false,
+    "error": {
+        "code": 400,
+        "errors": [
+            {
+                "code": 408,
+                "path": "/ruta/archivo"
+            }
+        ]
+    }
+}
+```
+
+### Códigos de Error Comunes
+- `100`: Error desconocido
+- `101`: Parámetro faltante (api, method o version)
+- `102`: API solicitada no existe
+- `105`: Sin permisos
+- `106`: Sesión expirada
+- `119`: Sesión inválida
+
+---
+
+## 🔧 4. IMPLEMENTACIÓN EN DJANGO
+
+### Configuración Dinámica (NUNCA hardcodear)
+
+```python
+from apps.settings.models import NASConfig
+
+# Obtener configuración activa
+config = NASConfig.get_active_config()
+base_url = config.get_base_url()  # https://10.2.0.194:5001
+username = config.admin_username
+password = config.admin_password
+```
+
+### Clase SynologyAPI Base
+
+**Ubicación:** `apps/core/synology_api.py`
+
+```python
+import requests
+import json
+
+class SynologyAPI:
+    def __init__(self, config):
+        """Inicializar con instancia de NASConfig"""
+        self.base_url = config.get_base_url()
+        self.username = config.admin_username
+        self.password = config.admin_password
+        self.sid = None
+        self.syno_token = None
+        self.session = requests.Session()
+        self.session.verify = False  # SSL en desarrollo
+    
+    def _request(self, api, method, version, **params):
+        """Método genérico para peticiones GET"""
+        url = f"{self.base_url}/webapi/entry.cgi"
+        
+        data = {
+            'api': api,
+            'version': version,
+            'method': method,
+        }
+        
+        # Agregar credenciales si ya autenticado
+        if self.sid:
+            data['_sid'] = self.sid
+        if self.syno_token:
+            data['SynoToken'] = self.syno_token
+        
+        data.update(params)
+        
+        try:
+            response = self.session.get(url, params=data, timeout=30)
+            result = response.json()
+            
+            if not result.get('success'):
+                error_code = result.get('error', {}).get('code')
+                raise Exception(f"API Error {error_code}")
+            
+            return result.get('data', {})
+        
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Error de conexión: {str(e)}")
+    
+    def test_connection(self):
+        """Prueba conexión sin autenticar"""
+        try:
+            url = f"{self.base_url}/webapi/entry.cgi"
+            response = self.session.get(
+                url,
+                params={
+                    'api': 'SYNO.API.Info',
+                    'version': 1,
+                    'method': 'query',
+                    'query': 'SYNO.API.Auth'
+                },
+                timeout=10,
+                verify=False
+            )
+            
+            result = response.json()
+            return {
+                'success': result.get('success', False),
+                'message': f'Conexión {"exitosa" if result.get("success") else "fallida"}'
+            }
+        
+        except requests.exceptions.Timeout:
+            return {'success': False, 'message': 'Timeout'}
+        except requests.exceptions.ConnectionError:
+            return {'success': False, 'message': 'No se puede conectar'}
+        except Exception as e:
+            return {'success': False, 'message': str(e)}
+    
+    def login(self):
+        """Autenticarse y obtener SID + Token"""
+        data = self._request(
+            api='SYNO.API.Auth',
+            version=6,
+            method='login',
+            account=self.username,
+            passwd=self.password,
+            session='FileStation',
+            format='sid',
+            enable_syno_token='yes'
+        )
+        
+        self.sid = data.get('sid')
+        self.syno_token = data.get('synotoken')
+        self.session.cookies.set('id', self.sid)
+        
+        return True
+    
+    def logout(self):
+        """Cerrar sesión"""
+        self._request(
+            api='SYNO.API.Auth',
+            version=6,
+            method='logout'
+        )
+        self.sid = None
+        self.syno_token = None
+```
+
+---
+
+## ✅ 5. EJEMPLO COMPLETO DE USO
+
+```python
+from apps.settings.models import NASConfig
+from apps.core.synology_api import SynologyAPI
+
+# 1. Obtener configuración
+config = NASConfig.get_active_config()
+
+# 2. Crear instancia API
+api = SynologyAPI(config)
+
+# 3. Login
+api.login()
+
+# 4. Operaciones
+users = api._request('SYNO.Core.User', 'list', 1)
+files = api._request('SYNO.FileStation.List', 'list_share', 2)
+
+# 5. Logout
+api.logout()
+```
+
+---
+
+## ❌ NUNCA HACER
+
+1. ❌ Hardcodear IPs o credenciales
+2. ❌ Olvidar `_sid` y `SynoToken`
+3. ❌ Usar GET para subir archivos (debe ser POST)
+4. ❌ Olvidar cerrar sesión (logout)
+5. ❌ Ignorar códigos de error
+
+## ✅ SIEMPRE HACER
+
+1. ✅ `NASConfig.get_active_config()`
+2. ✅ `config.get_base_url()` para URLs
+3. ✅ Manejar excepciones y timeouts
+4. ✅ Validar `success: true`
+5. ✅ Arrays/objects como JSON strings
+6. ✅ Guardar SID/Token en sesión Django
+
+---
+
+## 🧪 Vista de Prueba de Conexión
+
+```python
+from django.shortcuts import redirect
+from django.contrib import messages
+from apps.settings.models import NASConfig
+from apps.core.synology_api import SynologyAPI
+
+def test_nas_connection(request):
+    config = NASConfig.get_active_config()
+    
+    if not config:
+        messages.error(request, 'No hay configuración activa')
+        return redirect('settings:config')
+    
+    api = SynologyAPI(config)
+    
+    # Test 1: Conexión
+    result = api.test_connection()
+    if not result['success']:
+        messages.error(request, result['message'])
+        return redirect('settings:config')
+    
+    # Test 2: Autenticación
+    try:
+        api.login()
+        messages.success(request, '✅ Conexión y autenticación exitosa')
+        api.logout()
+    except Exception as e:
+        messages.error(request, f'❌ Error: {str(e)}')
+    
+    return redirect('settings:config')
+```
+
+---
+
+Esta documentación es la referencia oficial para todas las integraciones con la API de Synology en el proyecto NAS Manager. 🚀
