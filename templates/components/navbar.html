@@ -35,20 +35,6 @@
                 </div>
             {% endif %}
 
-            <!-- Icono de notificaciones -->
-            <button class="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <i class="fas fa-bell text-lg"></i>
-                <!-- Badge de notificaciones pendientes -->
-                <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-
-            <!-- Icono de ayuda -->
-            <a href="#" 
-               title="Ayuda"
-               class="p-2 text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <i class="fas fa-question-circle text-lg"></i>
-            </a>
-
             <!-- Separador -->
             <div class="h-8 w-px bg-gray-300"></div>
 
@@ -87,15 +73,9 @@
                          style="display: none;">
                         
                         <!-- Perfil -->
-                        <a href="#" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                        <a href="{% url 'accounts:profile' %}" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                             <i class="fas fa-user w-4"></i>
                             <span>Mi Perfil</span>
-                        </a>
-                        
-                        <!-- Settings -->
-                        <a href="{% url 'settings:config' %}" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            <i class="fas fa-cog w-4"></i>
-                            <span>Configuración</span>
                         </a>
                         
                         <div class="border-t border-gray-200 my-1"></div>

@@ -31,7 +31,11 @@ class ConnectionService:
             self.config = NASConfig.get_active_config()
             
         if not self.config:
-            raise ValueError("No hay configuración NAS activa. Configure el NAS primero.")
+            # En modo offline, permitimos iniciar sin config para simulaciones
+            from django.conf import settings
+            if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+                raise ValueError("No hay configuración NAS activa. Configure el NAS primero.")
+            logger.info("ConnectionService initialized in OFFLINE MODE (No active config)")
         
         # Cache para rutas de API descubiertas
         self.api_paths = {}
@@ -155,6 +159,19 @@ class ConnectionService:
         2. Usa version 3 (o máxima compatible)
         3. Session = FileStation
         """
+        # Chequeo Modo Offline
+        from django.conf import settings
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            logger.info("OFFLINE MODE: Simulating authentication success")
+            fake_sid = 'OFFLINE_MODE_SID_12345'
+            self._sid = fake_sid
+            return {
+                'success': True,
+                'sid': fake_sid,
+                'synotoken': '',
+                'did': ''
+            }
+
         try:
             # 1. Obtener ruta correcta
             auth_info = self._get_api_info('SYNO.API.Auth')
@@ -162,7 +179,6 @@ class ConnectionService:
             max_ver = auth_info.get('maxVersion', 3)
             
             # Synology Auth v3 es lo estándar para File Station, pero no pasarnos de 3 si reporta más
-            # (aunque v6 existe, File Station suele requerir auth antigua o manejo especial de token)
             # El usuario especificó explicitamente v3.
             use_version = 3
             if max_ver < 3:
@@ -188,10 +204,10 @@ class ConnectionService:
             
             if data.get('success'):
                 logger.info("✅ Login exitoso")
+                self._sid = data['data']['sid'] # Guardar SID en la instancia
                 return {
                     'success': True,
                     'sid': data['data']['sid'],
-                    # En v3 no suele haber synotoken, pero si lo hubiera lo capturamos
                     'synotoken': data.get('data', {}).get('synotoken'),
                     'did': data.get('data', {}).get('did')
                 }
@@ -212,6 +228,76 @@ class ConnectionService:
                 'error': str(e),
                 'message': f'Error de sistema: {str(e)}'
             }
+
+    def request(self, api, method, version=1, params=None, sid=None):
+        """
+        Método genérico para realizar peticiones a la API.
+        Maneja:
+        - Discovery de ruta (path)
+        - Inyección de SID (si existe autenticación previa)
+        - Construcción de URL
+        """
+        if params is None:
+            params = {}
+            
+        # Chequeo Modo Offline
+        from django.conf import settings
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            logger.info(f"OFFLINE MODE: Simulating request to {api} / {method}")
+            # Retornar estructuras vacías válidas para evitar crashes en el frontend
+            return {'success': True, 'data': {
+                'users': [], 
+                'groups': [], 
+                'shares': [], 
+                'vol_info': [],
+                'app_privs': [] # Added missing key
+            }}
+
+        try:
+            # 1. Resolver path de la API
+            info = self._get_api_info(api)
+            path = info.get('path', 'entry.cgi')
+            
+            # 2. Construir URL base
+            url = f"{self.get_base_url()}/webapi/{path}"
+            
+            # 3. Preparar parámetros base
+            payload = {
+                'api': api,
+                'version': version,
+                'method': method,
+                **params # Merge con params del usuario
+            }
+            
+            # 4. Inyectar SID (Prioridad: Argumento > self._sid)
+            active_sid = sid or getattr(self, '_sid', None)
+            if active_sid:
+                payload['_sid'] = active_sid
+                
+            # 5. Ejecutar Request
+            # Nota: Synology suele aceptar todo por GET o POST. 
+            # Usamos POST por defecto para acciones que modifiquen datos por seguridad/longitud,
+            # pero GET también es muy comun.
+            # Para 'list' o 'get' info, GET es mejor. Para create/update, POST.
+            # Decisión: GET por defecto para lectura, POST si params son largos?
+            # Simplificación: requests.post suele funcionar universalmente en Synology APIs excepto Auth.
+            if method in ['query', 'list', 'get']:
+                resp = requests.get(url, params=payload, timeout=30, verify=False)
+            else:
+                resp = requests.post(url, data=payload, timeout=30, verify=False)
+                
+            # 6. Procesar respuesta
+            if resp.status_code == 200:
+                try:
+                    return resp.json()
+                except ValueError:
+                    return {'success': False, 'message': 'Invalid JSON response', 'raw': resp.text}
+            else:
+                return {'success': False, 'http_code': resp.status_code, 'message': 'HTTP Error'}
+
+        except Exception as e:
+            logger.error(f"Error in ConnectionService.request({api}, {method}): {e}")
+            return {'success': False, 'message': str(e)}
 
     def logout(self, sid):
         """Cierra sesión usando la ruta correcta"""

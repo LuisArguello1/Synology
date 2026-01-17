@@ -1,0 +1,47 @@
+<div x-show="currentStep === 3" class="space-y-4">
+    <h2 class="text-lg font-semibold text-gray-800">Permisos de carpetas compartidas</h2>
+    <p class="text-xs text-gray-500">Asigne los privilegios de acceso para las carpetas compartidas.</p>
+    
+    <div class="bg-white border border-gray-200 rounded-sm overflow-hidden flex flex-col h-[400px]">
+        <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div class="flex-1 px-4">Carpeta Compartida</div>
+            <div class="w-24 text-center">Lectura/Escritura</div>
+            <div class="w-24 text-center">Solo Lectura</div>
+            <div class="w-24 text-center">Sin Acceso</div>
+        </div>
+
+        <!-- List -->
+        <div class="flex-1 overflow-y-auto p-0">
+            <template x-for="share in options.shares" :key="share.name">
+                <div class="flex items-center px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
+                    <!-- Share Name -->
+                    <div class="flex-1 px-4 text-xs font-medium text-gray-700 flex items-center">
+                        <i class="fas fa-folder text-yellow-500 mr-2"></i>
+                        <span x-text="share.name"></span>
+                    </div>
+                    
+                    <!-- RW -->
+                    <div class="w-24 flex justify-center">
+                        <input type="radio" :name="'perm_' + share.name" value="rw" x-model="formData.permissions[share.name]"
+                            class="w-3.5 h-3.5 text-indigo-600 border-gray-300 focus:ring-indigo-500 focus:ring-1">
+                    </div>
+                    <!-- RO -->
+                    <div class="w-24 flex justify-center">
+                        <input type="radio" :name="'perm_' + share.name" value="ro" x-model="formData.permissions[share.name]"
+                            class="w-3.5 h-3.5 text-indigo-600 border-gray-300 focus:ring-indigo-500 focus:ring-1">
+                    </div>
+                    <!-- NA -->
+                    <div class="w-24 flex justify-center">
+                         <input type="radio" :name="'perm_' + share.name" value="na" x-model="formData.permissions[share.name]"
+                            class="w-3.5 h-3.5 text-indigo-600 border-gray-300 focus:ring-indigo-500 focus:ring-1">
+                    </div>
+                </div>
+            </template>
+            
+            <div x-show="!options.shares || options.shares.length === 0" class="p-8 text-center text-gray-400 text-xs">
+                No hay carpetas compartidas disponibles.
+            </div>
+        </div>
+    </div>
+</div>

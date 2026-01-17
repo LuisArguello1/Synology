@@ -1,0 +1,234 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %}Editar Perfil - NAS Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900">Configuración del Perfil</h1>
+        <p class="mt-1 text-sm text-gray-600">Actualiza tu información personal y configuración de cuenta</p>
+    </div>
+
+    <!-- Main Card -->
+    <div class="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+        <form method="post" class="divide-y divide-gray-200">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+            <div class="px-6 py-4 bg-red-50 border-l-4 border-red-400">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Se encontraron errores en el formulario</h3>
+                        <div class="mt-2 text-sm text-red-700">
+                            {{ form.non_field_errors }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Información General Section -->
+            <div class="px-6 py-5">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-lg font-medium text-gray-900">Información General</h2>
+                        <p class="text-sm text-gray-500">Datos básicos de tu cuenta</p>
+                    </div>
+                </div>
+
+                <div class="space-y-5 mt-6">
+                    <!-- Description -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                        <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
+                            {{ form.description.label }}
+                            {% if form.description.field.required %}
+                                <span class="text-red-500">*</span>
+                            {% endif %}
+                        </label>
+                        <div class="sm:col-span-2">
+                            {{ form.description }}
+                            {% if form.description.help_text %}
+                                <p class="mt-1.5 text-xs text-gray-500">{{ form.description.help_text }}</p>
+                            {% endif %}
+                            {% if form.description.errors %}
+                                <p class="mt-1.5 text-sm text-red-600 flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ form.description.errors.0 }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                        <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
+                            {{ form.email.label }}
+                            {% if form.email.field.required %}
+                                <span class="text-red-500">*</span>
+                            {% endif %}
+                        </label>
+                        <div class="sm:col-span-2">
+                            {{ form.email }}
+                            {% if form.email.help_text %}
+                                <p class="mt-1.5 text-xs text-gray-500">{{ form.email.help_text }}</p>
+                            {% endif %}
+                            {% if form.email.errors %}
+                                <p class="mt-1.5 text-sm text-red-600 flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ form.email.errors.0 }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seguridad Section -->
+            {% if not syno_user.cannot_change_password %}
+            <div class="px-6 py-5 bg-gray-50">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-lg font-medium text-gray-900">Seguridad</h2>
+                        <p class="text-sm text-gray-500">Cambia tu contraseña de acceso</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-5 mt-6">
+                    <!-- Password -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                        <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
+                            {{ form.password.label }}
+                        </label>
+                        <div class="sm:col-span-2">
+                            {{ form.password }}
+                            {% if form.password.help_text %}
+                                <p class="mt-1.5 text-xs text-gray-500">{{ form.password.help_text }}</p>
+                            {% else %}
+                                <p class="mt-1.5 text-xs text-gray-500">Deja en blanco si no deseas cambiar la contraseña</p>
+                            {% endif %}
+                            {% if form.password.errors %}
+                                <p class="mt-1.5 text-sm text-red-600 flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ form.password.errors.0 }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                        <label for="{{ form.confirm_password.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
+                            {{ form.confirm_password.label }}
+                        </label>
+                        <div class="sm:col-span-2">
+                            {{ form.confirm_password }}
+                            {% if form.confirm_password.help_text %}
+                                <p class="mt-1.5 text-xs text-gray-500">{{ form.confirm_password.help_text }}</p>
+                            {% endif %}
+                            {% if form.confirm_password.errors %}
+                                <p class="mt-1.5 text-sm text-red-600 flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ form.confirm_password.errors.0 }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="px-6 py-5 bg-yellow-50">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">Restricción de seguridad</h3>
+                        <p class="mt-1 text-sm text-yellow-700">
+                            Tu cuenta no tiene permisos para cambiar la contraseña. Por favor, contacta al administrador del sistema para realizar cambios en la contraseña.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+                {% url 'accounts:profile' as cancel_url %}
+                {% include 'components/buttons/btn_secondary.html' with text='Cancelar' icon='times' url=cancel_url %}
+                {% include 'components/buttons/btn_primary.html' with text='Guardar Cambios' icon='save' type='submit' %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Información adicional -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <p class="text-sm text-blue-700">
+                    <strong>Nota:</strong> Los cambios en tu información personal se sincronizarán con el servidor NAS Synology. Asegúrate de que la información sea correcta antes de guardar.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Estilos para los campos del formulario */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    textarea {
+        @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm transition-colors duration-200;
+    }
+    
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus,
+    textarea:focus {
+        @apply ring-2 ring-blue-500 ring-offset-1;
+    }
+    
+    /* Error states */
+    input.error,
+    textarea.error {
+        @apply border-red-300 text-red-900 placeholder-red-300 focus:border-red-500 focus:ring-red-500;
+    }
+    
+    /* Textarea específico */
+    textarea {
+        @apply resize-y min-h-[80px];
+    }
+</style>
+{% endblock %}

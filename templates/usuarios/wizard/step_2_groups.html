@@ -1,0 +1,42 @@
+<div x-show="currentStep === 2" class="space-y-4">
+    <h2 class="text-lg font-semibold text-gray-800">Unirse a grupos</h2>
+    <p class="text-xs text-gray-500">Seleccione los grupos a los que pertenecerá este usuario.</p>
+    
+    <div class="bg-white border border-gray-200 rounded-sm overflow-hidden flex flex-col h-[400px]">
+        <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div class="w-10 text-center">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="flex-1 px-4">Nombre del Grupo</div>
+            <div class="w-32 hidden sm:block">Descripción</div>
+        </div>
+        
+        <!-- List -->
+        <div class="flex-1 overflow-y-auto p-0">
+            <template x-for="group in options.groups" :key="group.name">
+                <div class="flex items-center px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors cursor-pointer"
+                     @click="$refs['chk_'+group.name].click()">
+                    <!-- Checkbox -->
+                    <div class="w-10 flex justify-center" @click.stop>
+                        <input type="checkbox" :value="group.name" :x-ref="'chk_'+group.name" x-model="formData.groups"
+                            class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1 transition-colors">
+                    </div>
+                    <!-- Name -->
+                    <div class="flex-1 px-4 text-xs font-medium text-gray-700 flex items-center">
+                        <i class="fas fa-users text-gray-400 mr-2"></i>
+                        <span x-text="group.name"></span>
+                    </div>
+                    <!-- Desc -->
+                    <div class="w-32 hidden sm:block text-[10px] text-gray-500 truncate" x-text="group.description || '-'"></div>
+                </div>
+            </template>
+            
+            <!-- Empty State -->
+            <div x-show="!options.groups || options.groups.length === 0" class="p-8 text-center text-gray-400 text-xs">
+                No hay grupos disponibles.
+            </div>
+        </div>
+    </div>
+    
+</div>

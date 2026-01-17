@@ -1,0 +1,33 @@
+<div x-show="currentStep === 7">
+    <h2 class="text-xl font-semibold text-gray-800 mb-6">Confirmar configuración</h2>
+    
+    <div class="bg-gray-50 rounded-md p-6 border border-gray-200 space-y-4">
+        <div>
+            <span class="block text-xs font-medium text-gray-500 uppercase">Nombre de usuario</span>
+            <span class="block text-sm text-gray-900 font-bold" x-text="formData.info.name || '-'"></span>
+        </div>
+        
+        <div>
+            <span class="block text-xs font-medium text-gray-500 uppercase">Email</span>
+            <span class="block text-sm text-gray-900" x-text="formData.info.email || '-'"></span>
+        </div>
+
+        <div>
+            <span class="block text-xs font-medium text-gray-500 uppercase">Grupos</span>
+            <span class="block text-sm text-gray-900">
+                <template x-if="formData.groups.length > 0">
+                    <span x-text="formData.groups.join(', ')"></span>
+                </template>
+                <template x-if="formData.groups.length === 0">
+                    <span class="italic text-gray-400">Ninguno</span>
+                </template>
+            </span>
+        </div>
+        
+        <div class="pt-4 border-t border-gray-200">
+            <p class="text-xs text-gray-500">
+                Al hacer clic en "Finalizar", se aplicarán todas las configuraciones en el servidor NAS.
+            </p>
+        </div>
+    </div>
+</div>
