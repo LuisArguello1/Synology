@@ -1,4 +1,4 @@
-En venv hay esta variable para programar aunque no este conectados al
+En .env hay esta variable para programar aunque no este conectados al
 synology de la universidad cuando esta en TRUE esta en modo offline
 pero cuando esta en FALSE esta en modo online y se conecta al synology de la universidad
 
