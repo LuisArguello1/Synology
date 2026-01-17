@@ -50,11 +50,16 @@ class UserService:
 
     def get_user(self, name):
         """
-        Obtiene detalles de UN usuario.
+        Obtiene detalles de UN usuario con todos los adicionales necesarios para el Wizard.
         API: SYNO.Core.User method=get
         """
         try:
-            additional = ["email", "description", "expired", "groups", "quota", "cannot_change_password"] 
+            # Traemos todo lo posible para poblar el Wizard en modo edición
+            additional = [
+                "email", "description", "expired", "groups", 
+                "quota", "cannot_change_password", "app_privilege",
+                "speed_limit"
+            ] 
             
             response = self.connection.request(
                 api='SYNO.Core.User',
@@ -67,9 +72,17 @@ class UserService:
             )
             
             if response.get('success'):
-                # get devuelve una lista 'users' con un elemento
                 users = response.get('data', {}).get('users', [])
-                return users[0] if users else None
+                if users:
+                    user_data = users[0]
+                    # Normalizar permisos de aplicación para que sea una lista plana de apps permitidas
+                    if 'app_privilege' in user_data:
+                        apps = user_data['app_privilege']
+                        if isinstance(apps, dict):
+                            user_data['apps_list'] = [app for app, allow in apps.items() if allow]
+                        elif isinstance(apps, list):
+                            user_data['apps_list'] = [a['app'] for a in apps if a.get('allow')]
+                    return user_data
             return None
             
         except Exception as e:
@@ -90,17 +103,18 @@ class UserService:
 
     def get_wizard_options(self):
         """
-        Obtiene TODAS las dependencias para poblar los selects del Wizard:
-        - Grupos existentes
-        - Carpetas compartidas (para permisos)
-        - Volumenes (para cuotas)
-        - Apps (para privilegios)
+        Obtiene TODAS las dependencias para poblar los selects del Wizard.
+        Incluye permisos de grupos por defecto para la vista previa.
         """
         options = {
             'groups': [],
             'shares': [],
             'apps': [],
-            'volumes': ['/volume1'] # Fallback
+            'volumes': [],
+            'group_defaults': {
+                'shares': {}, # { 'share_name': 'rw/ro/na' }
+                'apps': {}    # { 'app_id': true/false }
+            }
         }
         
         try:
@@ -119,198 +133,221 @@ class UserService:
             if a_resp.get('success'):
                 options['apps'] = a_resp['data']['app_privs']
             
-            # TODO: SYNO.Core.Storage.Volume para volúmenes reales
+            # 4. Volúmenes (para cuotas)
+            v_resp = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1)
+            if v_resp.get('success'):
+                options['volumes'] = [v['path'] for v in v_resp['data']['volumes']]
+            else:
+                 options['volumes'] = ['/volume1'] # Fallback
+
+            # 5. Obtener permisos de TODOS los grupos (para cálculos dinámicos en el wizard)
+            options['group_permissions'] = {}
+            try:
+                # Intentamos obtener detalles de todos los grupos para la vista previa dinámica
+                group_list = [g['name'] for g in options.get('groups', [])]
+                if group_list:
+                    # El API SYNO.Core.Group method=get suele aceptar múltiples nombres separados por coma
+                    params = {
+                        'name': ",".join(group_list),
+                        'additional': json.dumps(["share_privilege", "app_privilege"])
+                    }
+                    ug_resp = self.connection.request('SYNO.Core.Group', 'get', version=1, params=params)
+                    if ug_resp.get('success') and ug_resp['data']['groups']:
+                        for g_info in ug_resp['data']['groups']:
+                            g_name = g_info['name']
+                            options['group_permissions'][g_name] = {
+                                'shares': {sp['share_name']: sp['privilege'] for sp in g_info.get('share_privilege', [])},
+                                'apps': {}
+                            }
+                            # Apps
+                            apps_priv = g_info.get('app_privilege', {})
+                            if isinstance(apps_priv, dict):
+                                options['group_permissions'][g_name]['apps'] = apps_priv
+                            elif isinstance(apps_priv, list):
+                                for ap in apps_priv:
+                                    options['group_permissions'][g_name]['apps'][ap['app']] = ap.get('allow', False)
+            except Exception as ge:
+                logger.error(f"Error fetching all group permissions: {ge}")
+                # Fallback simple para el grupo 'users' si falla el masivo
+                options['group_permissions']['users'] = {'shares': {}, 'apps': {}}
 
         except Exception as e:
             logger.error(f"Error fetching wizard options: {e}")
+            if not options['volumes']: options['volumes'] = ['/volume1']
             
         return options
 
-    def create_user_wizard(self, data):
+    def apply_user_settings(self, username, data, results):
         """
-        ORQUESTADOR DE CREACIÓN DE USUARIO.
-        Ejecuta pasos secuenciales y aplica configuraciones complejas.
+        Aplica configuraciones complejas (Grupos, Cuotas, Apps, Speed) a un usuario existente.
         """
-        results = {'success': False, 'steps': [], 'errors': []}
         info = data.get('info', {})
-        username = info.get('name')
-        
-        if not username:
-            return {'success': False, 'message': 'Username is required'}
-
-        # ---------------------------------------------------------
-        # PASO 1: Crear Usuario Base (SYNO.Core.User / create)
-        # ---------------------------------------------------------
-        try:
-            params = {
-                'name': info['name'],
-                'password': info['password'],
-                'email': info.get('email', ''),
-                'description': info.get('description', ''),
-                'expired': 'normal'
-            }
-            
-            resp = self.connection.request('SYNO.Core.User', 'create', version=1, params=params)
-            
-            if not resp.get('success'):
-                error_code = resp.get('error', {}).get('code', 'unknown')
-                return {'success': False, 'message': f'Failed to create user. Synology Error: {error_code}'}
-            
-            results['steps'].append('User Created')
-            
-        except Exception as e:
-            logger.exception("Error creating user base")
-            return {'success': False, 'message': f'Exception creating user: {str(e)}'}
-
-        # Si llegamos aqui, el usuario existe. 
-        # Ahora preparamos un GRAN update o varios updates para configurar lo demás.
-        # Synology SYNO.Core.User update (v1) soporta muchos parametros simultaneos.
-        
         update_params = {'name': username}
         has_updates = False
 
-        # ---------------------------------------------------------
-        # PASO 2: Grupos
-        # ---------------------------------------------------------
-        if 'groups' in data and data['groups']:
-            # groups debe ser CSV
+        # 0. Flags de Usuario
+        if 'cannot_change_password' in info:
+            update_params['cannot_change_passwd'] = info['cannot_change_password']
+            has_updates = True
+
+        # 1. Grupos
+        if 'groups' in data:
             update_params['groups'] = ",".join(data['groups'])
             has_updates = True
 
-        # ---------------------------------------------------------
-        # PASO 3: Permisos Carpetas (shares: JSON)
-        # ---------------------------------------------------------
-        # data['permissions'] es un dict: {'shareName': 'rw', ...}
-        # Synology espera un array de objetos en un string JSON si la API lo soporta, 
-        # OJO: V1 a veces no tiene "permissions" param en 'User update'.
-        # Si no lo soporta, habría que usar SYNO.Core.Share.Permission set por cada carpeta.
-        # Asumiremos la estrategia de intentar pasarlo en update (algunas versiones DSM lo aceptan), 
-        # si no, iteraremos.
-        # Estrategia segura: Iterar SYNO.Core.Share.Permission para cada share modificado.
-        
-        # ---------------------------------------------------------
-        # PASO 3: Permisos Carpetas (SYNO.Core.Share.Permission)
-        # ---------------------------------------------------------
-        # La API de usuarios v1 no siempre acepta permisos de share en el update.
-        # La forma canónica "Regla del NAS" es iterar sobre los shares y usar su API específica.
+        # 2. Permisos de Carpetas
         if 'permissions' in data and data['permissions']:
             perm_errors = []
             for share_name, policy in data['permissions'].items():
                 if policy not in ['rw', 'ro', 'na']: continue
-                
                 try:
-                    # SYNO.Core.Share.Permission: method='write' 
-                    # params: name=<ShareName>, user_name=<User>, privilege=<rw|ro|na>
                     p_resp = self.connection.request(
                         api='SYNO.Core.Share.Permission',
-                        method='write',
-                        version=1,
-                        params={
-                            'name': share_name,
-                            'user_name': username,
-                            'privilege': policy
-                        }
+                        method='write', version=1,
+                        params={'name': share_name, 'user_name': username, 'privilege': policy}
                     )
-                    
-                    if not p_resp.get('success'):
-                         perm_errors.append(f"{share_name}: {p_resp}")
-                         
-                except Exception as e:
-                    perm_errors.append(f"{share_name} Exception: {str(e)}")
+                    if not p_resp.get('success'): perm_errors.append(f"{share_name}: {p_resp.get('error')}")
+                except Exception as e: perm_errors.append(f"{share_name}: {str(e)}")
             
-            if perm_errors:
-                results['errors'].append(f"Permission errors: {perm_errors}")
-            else:
-                results['steps'].append('Folder Permissions Applied')
+            if not perm_errors: results['steps'].append('Folder Permissions Applied')
+            else: results['errors'].append(f"Permission errors: {perm_errors}")
 
-        # ---------------------------------------------------------
-        # PASO 4: Cuota (quota: JSON)
-        # ---------------------------------------------------------
+        # 3. Cuotas
         if 'quota' in data and data['quota']:
             quota_list = []
             for vol_path, q_data in data['quota'].items():
                 size_mb = int(q_data.get('size', 0))
                 unit = q_data.get('unit', 'MB')
-                
                 if unit == 'GB': size_mb *= 1024
                 elif unit == 'TB': size_mb *= 1024 * 1024
-                
-                # Formato estándar para SYNO.Core.User quota_limit
-                quota_list.append({
-                    "volume_path": vol_path,
-                    "size_limit": size_mb 
-                })
+                quota_list.append({"volume_path": vol_path, "size_limit": size_mb})
             
             if quota_list:
                 update_params['quota_limit'] = json.dumps(quota_list)
                 has_updates = True
 
-        # ---------------------------------------------------------
-        # PASO 5: Apps (apps: List)
-        # ---------------------------------------------------------
-        # Aquí seteamos permisos de aplicación explícitos.
+        # 4. Apps (Nuevo formato de objeto)
         if 'apps' in data:
             app_list = []
-            # data['apps'] contiene nombres de apps permitidas.
-            # Synology espera objetos con "allow": true/false
-            
-            for app_name in data['apps']:
-                app_list.append({
-                    "app": app_name,
-                    "allow": True,          # Permitir acceso
-                    "allow_empty": False    # No heredar
-                })
+            all_apps_meta = self.get_wizard_options().get('apps', [])
+            for app_meta in all_apps_meta:
+                app_id = app_meta.get('app')
+                user_setting = data['apps'].get(app_id) # 'allow', 'deny', or None (default)
+                
+                if user_setting in ['allow', 'deny']:
+                    app_list.append({
+                        "app": app_id,
+                        "allow": (user_setting == 'allow'),
+                        "allow_empty": False
+                    })
             
             if app_list:
                 update_params['app_privilege'] = json.dumps(app_list)
                 has_updates = True
         
-        # ---------------------------------------------------------
-        # PASO 6: Limites de Velocidad (speed: JSON)
-        # ---------------------------------------------------------
+        # 5. Límites de Velocidad (Per-Service)
         if 'speed' in data and data['speed']:
-             # speed = { 'upload_value': 100, 'upload_unit': 'KB', ... }
-             # SYNO.Core.User update espera 'speed_limit_up' y 'speed_limit_down' (en KB/s usualmente)
-             s_data = data['speed']
-             
-             # Calculadora simple a KB
-             def to_kb(val, unit):
-                 try: 
-                     val = int(val)
-                     if unit == 'MB': return val * 1024
-                     return val
-                 except: return 0
+            speed_rules = []
+            service_map = {'File Station': 'file_station', 'FTP': 'ftp', 'Rsync': 'rsync'}
+            
+            def to_kb(val, unit):
+                try:
+                    v = int(val)
+                    return v * 1024 if unit == 'MB' else v
+                except: return 0
 
-             up_kb = to_kb(s_data.get('upload_value'), s_data.get('upload_unit'))
-             down_kb = to_kb(s_data.get('download_value'), s_data.get('download_unit'))
-             
-             if up_kb > 0:
-                 update_params['speed_limit_up'] = up_kb
-                 has_updates = True
-             if down_kb > 0:
-                 update_params['speed_limit_down'] = down_kb
-                 has_updates = True
+            for name, s_data in data['speed'].items():
+                api_id = service_map.get(name)
+                if not api_id: continue
+                
+                rule = {
+                    "service": api_id,
+                    "mode": s_data.get('mode', 'unlimited'),
+                    "upload": to_kb(s_data.get('up'), s_data.get('up_unit')),
+                    "download": to_kb(s_data.get('down'), s_data.get('down_unit'))
+                }
+                speed_rules.append(rule)
+            
+            if speed_rules:
+                # Enviamos tanto el formato extendido (si lo soporta) como el global (para compatibilidad)
+                update_params['speed_limit_rules'] = json.dumps(speed_rules)
+                
+                # Fallback Global basado en File Station
+                fs = data['speed'].get('File Station', {})
+                if fs.get('mode') == 'limit':
+                    update_params['speed_limit_up'] = to_kb(fs.get('up'), fs.get('up_unit'))
+                    update_params['speed_limit_down'] = to_kb(fs.get('down'), fs.get('down_unit'))
+                elif fs.get('mode') == 'unlimited':
+                    update_params['speed_limit_up'] = 0
+                    update_params['speed_limit_down'] = 0
+                
+                has_updates = True
 
-        # ---------------------------------------------------------
-        # EJECUTAR UPDATE MASIVO
-        # ---------------------------------------------------------
+        # Ejecutar update consolidado
         if has_updates:
             try:
                 resp_up = self.connection.request('SYNO.Core.User', 'update', version=1, params=update_params)
-                if resp_up.get('success'):
-                    results['steps'].append('Settings Updated')
-                else:
-                    results['errors'].append(f"Update failed: {resp_up}")
-            except Exception as e:
-                results['errors'].append(f"Update exception: {str(e)}")
+                if resp_up.get('success'): results['steps'].append('Settings Applied')
+                else: results['errors'].append(f"Settings update failed: {resp_up}")
+            except Exception as e: results['errors'].append(f"Update exception: {str(e)}")
 
-        if results['errors']:
-            results['success'] = False
-            results['message'] = "User created but some settings failed: " + "; ".join(results['errors'])
-        else:
-            results['success'] = True
-        
         return results
 
-    def update_user(self, name, data):
-        return self.connection.request('SYNO.Core.User', 'update', version=1, params=data)
+    def create_user_wizard(self, data):
+        """Orquestador de CREACIÓN"""
+        results = {'success': False, 'steps': [], 'errors': []}
+        info = data.get('info', {})
+        username = info.get('name')
+        
+        if not username: return {'success': False, 'message': 'Username is required'}
+
+        # Paso 1: Crear Base
+        try:
+            params = {
+                'name': username,
+                'password': info['password'],
+                'email': info.get('email', ''),
+                'description': info.get('description', ''),
+                'expired': 'normal',
+                'send_welcome_email': info.get('send_notification', False),
+                'cannot_change_passwd': info.get('cannot_change_password', False)
+            }
+            resp = self.connection.request('SYNO.Core.User', 'create', version=1, params=params)
+            if not resp.get('success'):
+                return {'success': False, 'message': f"Synology Error {resp.get('error', {}).get('code')}"}
+            results['steps'].append('User Created')
+        except Exception as e:
+            return {'success': False, 'message': f'Exception: {str(e)}'}
+
+        # Paso 2: Aplicar configuraciones
+        self.apply_user_settings(username, data, results)
+        results['success'] = len(results['errors']) == 0
+        return results
+
+    def update_user_wizard(self, data):
+        """Orquestador de ACTUALIZACIÓN"""
+        results = {'success': False, 'steps': [], 'errors': []}
+        info = data.get('info', {})
+        username = info.get('name')
+        
+        if not username: return {'success': False, 'message': 'Username is required'}
+
+        # Paso 1: Update BaseInfo
+        try:
+            params = {'name': username}
+            if info.get('email'): params['email'] = info['email']
+            if info.get('description'): params['description'] = info['description']
+            if info.get('password'): params['password'] = info['password']
+            
+            resp = self.connection.request('SYNO.Core.User', 'update', version=1, params=params)
+            if not resp.get('success'):
+                 results['errors'].append(f"Base info update failed: {resp}")
+            else:
+                 results['steps'].append('Base Info Updated')
+        except Exception as e:
+            results['errors'].append(f"Update info exception: {str(e)}")
+
+        # Paso 2: Aplicar configuraciones avanzadas
+        self.apply_user_settings(username, data, results)
+        results['success'] = len(results['errors']) == 0
+        return results
