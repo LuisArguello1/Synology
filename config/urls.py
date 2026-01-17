@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('settings/', include('apps.settings.urls')),  # Settings app
     path('accounts/', include('apps.accounts.urls')),  # Accounts app
+    path('groups/', include('apps.groups.urls')),      # Groups app
     path('', include('apps.core.urls')),  # Core app (dashboard) at ROOT
 ]
 

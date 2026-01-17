@@ -70,36 +70,9 @@ class NASConfigView(LoginRequiredMixin, UpdateView):
         return super().form_invalid(form)
     
     def get_menu_items(self):
-        """Genera items del menú."""
-        current_path = self.request.path
-        return [
-            {
-                'name': 'Dashboard',
-                'icon': 'tachometer-alt',
-                'url': 'core:dashboard',
-                'active': current_path == reverse('core:dashboard')
-            },
-            {'separator': True, 'label': 'SISTEMA'},
-            {
-                'name': 'Archivos',
-                'icon': 'folder',
-                'url': 'core:dashboard',
-                'active': False
-            },
-            {
-                'name': 'Usuarios',
-                'icon': 'users',
-                'url': 'core:dashboard',
-                'active': False
-            },
-            {'separator': True, 'label': 'CONFIGURACIÓN'},
-            {
-                'name': 'NAS Config',
-                'icon': 'cog',
-                'url': 'settings:config',
-                'active': current_path == reverse('settings:config')
-            },
-        ]
+        """Genera items del menú usando servicio centralizado."""
+        from apps.core.services.menu_service import MenuService
+        return MenuService.get_menu_items(self.request)
 
 
 class TestConnectionView(LoginRequiredMixin, View):

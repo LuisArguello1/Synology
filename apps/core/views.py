@@ -42,39 +42,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return context
     
     def get_menu_items(self):
-        """
-        Genera los items del menú para el sidebar.
-        En el futuro, esto puede moverse a un mixin o service.
-        """
-        current_path = self.request.path
-        
-        return [
-            {
-                'name': 'Dashboard',
-                'icon': 'tachometer-alt',
-                'url': 'core:dashboard',
-                'active': current_path == reverse('core:dashboard')
-            },
-            # Separador
-            {'separator': True, 'label': 'SISTEMA'},
-            {
-                'name': 'Archivos',
-                'icon': 'folder',
-                'url': 'core:dashboard',  # Cambiar cuando exista la app
-                'active': False
-            },
-            {
-                'name': 'Usuarios',
-                'icon': 'users',
-                'url': 'core:dashboard',  # Cambiar cuando exista la app
-                'active': False
-            },
-            # Separador
-            {'separator': True, 'label': 'CONFIGURACIÓN'},
-            {
-                'name': 'NAS Config',
-                'icon': 'cog',
-                'url': 'settings:config',
-                'active': False
-            },
-        ]
+        """Genera items del menú usando servicio centralizado."""
+        from apps.core.services.menu_service import MenuService
+        return MenuService.get_menu_items(self.request)
