@@ -57,7 +57,12 @@ class ConnectionService:
                 'SYNO.FileStation.CreateFolder',
                 'SYNO.FileStation.Delete',
                 'SYNO.FileStation.Rename',
-                'SYNO.FileStation.CopyMove'
+                'SYNO.FileStation.CopyMove',
+                # Group APIs
+                'SYNO.Core.Group',
+                'SYNO.Core.Group.Member',
+                'SYNO.Core.Group.ValidLocalAdmin',
+                'SYNO.Core.Group.ExtraAdmin'
             ]
             
             params = {

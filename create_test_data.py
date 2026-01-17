@@ -1,7 +1,6 @@
 """
-Script para crear datos de prueba del módulo de grupos.
+Script para insertas datos de prueba y probar que el módulo de grupos funciona correctamente
 
-Ejecutar con: python manage.py shell < create_test_data.py
 """
 from django.contrib.auth.models import User
 from apps.groups.models import SharedFolder, Volume, Application
