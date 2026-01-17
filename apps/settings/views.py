@@ -47,8 +47,8 @@ class NASConfigView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Menu items para el sidebar
-        context['menu_items'] = self.get_menu_items()
+        # Menu items para el sidebar (Global Context Processor)
+        # context['menu_items'] = self.get_menu_items()
         
         # Breadcrumbs
         context['breadcrumbs'] = [
@@ -63,6 +63,20 @@ class NASConfigView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, 'Configuración guardada correctamente')
         logger.info(f"Configuración NAS actualizada: {form.instance.host}:{form.instance.port}")
+        
+        # LOG AUDITORIA
+        from apps.auditoria.services.audit_service import AuditService
+        AuditService.log(
+            action='UPDATE_SETTINGS',
+            description='Configuración del NAS actualizada',
+            user=self.request.user,
+            request=self.request,
+            details={
+                'host': form.instance.host,
+                'port': form.instance.port,
+                'user': form.instance.admin_username
+            }
+        )
         return super().form_valid(form)
     
     def form_invalid(self, form):

@@ -56,7 +56,7 @@
                 {% else %}
                     <!-- Item de menú -->
                     <li>
-                        <a href="{% url item.url %}" 
+                        <a href="{{ item.url }}" 
                            class="group flex items-center justify-between px-3 py-2 rounded-sm transition-all duration-200
                                   {% if item.active %}
                                       bg-indigo-500/10 text-indigo-400 border-l-2 border-indigo-500 pl-2.5
@@ -100,8 +100,8 @@
                 </div>
                 <!-- Info del usuario -->
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs font-medium text-gray-300 truncate">Usuario</p>
-                    <p class="text-[10px] text-gray-500 truncate">usuario@nas.local</p>
+                    <p class="text-xs font-medium text-gray-300 truncate">{{ user.username|default:"Usuario" }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ user.email|default:"No email" }}</p>
                 </div>
                 <!-- Icono settings -->
                 <a href="#" class="text-gray-500 hover:text-gray-300 transition-colors">

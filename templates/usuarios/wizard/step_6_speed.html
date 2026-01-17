@@ -1,0 +1,55 @@
+<div x-show="currentStep === 6" class="space-y-4">
+    <h2 class="text-lg font-semibold text-gray-800">Límites de velocidad</h2>
+    <p class="text-xs text-gray-500">Establezca límites de ancho de banda para la transferencia de archivos de este usuario.</p>
+    
+    <div class="bg-gray-50 border border-gray-200 rounded-sm p-6 space-y-6">
+        
+        <!-- Upload -->
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Subida (Upload)</label>
+            <div class="flex items-center space-x-2" x-data="{ unlimited: true }">
+                <div class="flex-1 flex shadow-sm rounded-sm">
+                     <span class="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-100 text-gray-500 text-xs rounded-l-sm">
+                        <i class="fas fa-arrow-up"></i>
+                    </span>
+                    <input type="number" x-model="formData.speed.upload_value" :disabled="unlimited" 
+                           class="flex-1 w-full px-3 py-1.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:bg-gray-100 disabled:text-gray-400">
+                    <select x-model="formData.speed.upload_unit" :disabled="unlimited"
+                            class="w-24 px-2 py-1.5 text-xs border border-l-0 border-gray-300 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent rounded-r-sm disabled:bg-gray-100 disabled:text-gray-400">
+                        <option value="KB">KB/s</option>
+                        <option value="MB">MB/s</option>
+                    </select>
+                </div>
+                <div class="flex items-center h-full pt-0 ml-2">
+                    <input type="checkbox" id="speed_up_nolimit" x-model="unlimited" 
+                        class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1 transition-colors">
+                    <label for="speed_up_nolimit" class="ml-2 text-xs text-gray-700">Ilimitado</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download -->
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Bajada (Download)</label>
+            <div class="flex items-center space-x-2" x-data="{ unlimited: true }">
+                <div class="flex-1 flex shadow-sm rounded-sm">
+                     <span class="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-100 text-gray-500 text-xs rounded-l-sm">
+                        <i class="fas fa-arrow-down"></i>
+                    </span>
+                    <input type="number" x-model="formData.speed.download_value" :disabled="unlimited"
+                           class="flex-1 w-full px-3 py-1.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:bg-gray-100 disabled:text-gray-400">
+                    <select x-model="formData.speed.download_unit" :disabled="unlimited"
+                            class="w-24 px-2 py-1.5 text-xs border border-l-0 border-gray-300 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent rounded-r-sm disabled:bg-gray-100 disabled:text-gray-400">
+                        <option value="KB">KB/s</option>
+                        <option value="MB">MB/s</option>
+                    </select>
+                </div>
+                <div class="flex items-center h-full pt-0 ml-2">
+                    <input type="checkbox" id="speed_down_nolimit" x-model="unlimited" 
+                        class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1 transition-colors">
+                    <label for="speed_down_nolimit" class="ml-2 text-xs text-gray-700">Ilimitado</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

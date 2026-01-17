@@ -28,8 +28,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         metrics_service = MetricsService()
         context['metrics'] = metrics_service.get_dashboard_metrics()
         
-        # Menu items para el sidebar
-        context['menu_items'] = self.get_menu_items()
+        # Menu items para el sidebar (Usando Service)
+        from apps.core.services.menu_service import MenuService
+        context['menu_items'] = MenuService.get_menu_items(self.request.path)
         
         # Breadcrumbs
         context['breadcrumbs'] = [
@@ -40,8 +41,3 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['page_title'] = 'Dashboard'
         
         return context
-    
-    def get_menu_items(self):
-        """Genera items del menú usando servicio centralizado."""
-        from apps.core.services.menu_service import MenuService
-        return MenuService.get_menu_items(self.request)

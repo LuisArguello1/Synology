@@ -1,29 +1,293 @@
 {% extends 'layouts/base.html' %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Dashboard - NAS Manager{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-4 px-4 py-4 max-w-[1400px] mx-auto">
     
     <!-- Header del Dashboard -->
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-xl font-semibold text-gray-900">Dashboard</h1>
-            <p class="text-xs text-gray-600 mt-0.5">Resumen general del sistema NAS</p>
+    <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+        <div class="flex items-center gap-3">
+            <h1 class="text-base font-bold text-gray-900 tracking-tight">Panel de Control</h1>
+            {% if user.is_staff %}
+            <div class="flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase
+                {% if metrics.health.is_ok %}bg-green-50 text-green-700 border border-green-100{% else %}bg-yellow-50 text-yellow-700 border border-yellow-100{% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full {% if metrics.health.is_ok %}bg-green-500{% else %}bg-yellow-500{% endif %} mr-1.5 animate-pulse"></span>
+                {{ metrics.health.status }}
+            </div>
+            {% endif %}
         </div>
-        <div>
-            {% include 'components/buttons/btn_primary.html' with text='Actualizar' icon='sync-alt' type='button' %}
+        <div class="flex items-center gap-2">
+            {% if user.is_staff %}
+            <div class="hidden sm:flex items-center px-3 py-1 bg-white border border-gray-200 rounded-sm shadow-sm">
+                <div class="mr-2">
+                    <i class="fas fa-users text-indigo-500 text-[10px]"></i>
+                </div>
+                <div>
+                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-tighter">Sesiones</p>
+                    <p class="text-xs font-bold text-gray-900 leading-none">{{ metrics.connections.total }}</p>
+                </div>
+            </div>
+            {% endif %}
+            <button onclick="location.reload()" class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-[11px] font-bold rounded-sm text-gray-700 bg-white hover:bg-gray-50 transition-all uppercase tracking-wider">
+                <i class="fas fa-sync-alt mr-1.5 text-[10px]"></i>
+                Actualizar
+            </button>
         </div>
     </div>
 
-    
+    {% if not user.is_staff %}
+    <!-- Welcome Card for Users -->
+    <div class="relative bg-gradient-to-br from-indigo-600 to-purple-700 rounded-sm p-5 text-white shadow-sm overflow-hidden">
+        <div class="absolute inset-0 bg-grid-pattern opacity-10"></div>
+        <div class="relative z-10 flex items-center justify-between">
+            <div class="flex-1">
+                <h2 class="text-sm font-bold mb-1">¡Bienvenido, {{ user.username }}!</h2>
+                <p class="text-indigo-100 text-[10px] max-w-xl leading-relaxed">
+                    Acceso al sistema de gestión NAS. Gestiona tu perfil y accede a tus carpetas compartidas.
+                </p>
+            </div>
+            <i class="fas fa-server text-3xl opacity-20"></i>
+        </div>
+    </div>
+    {% endif %}
 
+    <!-- System Metrics Grid -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- CPU Card -->
+        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-blue-200 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="w-7 h-7 rounded bg-blue-50 flex items-center justify-center">
+                    <i class="fas fa-microchip text-blue-600 text-[10px]"></i>
+                </div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">CPU</span>
+            </div>
+            <div class="flex items-baseline">
+                <p class="text-lg font-black text-gray-900">{{ metrics.system.cpu_usage }}</p>
+                <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
+            </div>
+            <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
+                <div class="bg-blue-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.cpu_usage }}%"></div>
+            </div>
+        </div>
+
+        <!-- RAM Card -->
+        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-purple-200 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="w-7 h-7 rounded bg-purple-50 flex items-center justify-center">
+                    <i class="fas fa-memory text-purple-600 text-[10px]"></i>
+                </div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">RAM</span>
+            </div>
+            <div class="flex items-baseline">
+                <p class="text-lg font-black text-gray-900">{{ metrics.system.memory_usage }}</p>
+                <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
+            </div>
+            <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
+                <div class="bg-purple-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.memory_usage }}%"></div>
+            </div>
+        </div>
+
+        <!-- Temperature Card -->
+        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-orange-200 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="w-7 h-7 rounded bg-orange-50 flex items-center justify-center">
+                    <i class="fas fa-thermometer-half text-orange-600 text-[10px]"></i>
+                </div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Temp</span>
+            </div>
+            <div class="flex items-baseline">
+                <p class="text-lg font-black text-gray-900">{{ metrics.system.temperature }}</p>
+                <p class="ml-0.5 text-[10px] font-bold text-gray-400">°C</p>
+            </div>
+            <div class="mt-2 flex items-center text-[9px] text-gray-500">
+                <i class="fas fa-check-circle mr-1 text-green-500"></i>
+                Estable
+            </div>
+        </div>
+
+        <!-- Uptime Card -->
+        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-green-200 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="w-7 h-7 rounded bg-green-50 flex items-center justify-center">
+                    <i class="fas fa-clock text-green-600 text-[10px]"></i>
+                </div>
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Uptime</span>
+            </div>
+            <div class="flex items-baseline">
+                <p class="text-lg font-black text-gray-900">{{ metrics.system.uptime_days }}</p>
+                <p class="ml-1 text-[10px] font-bold text-gray-700 uppercase">Días</p>
+            </div>
+            <div class="mt-2 flex items-center text-[9px] text-green-600 font-bold">
+                <span class="flex h-1.5 w-1.5 relative mr-1.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                </span>
+                Activo
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        <!-- Left Column: Storage & Events -->
+        <div class="lg:col-span-8 space-y-4">
+            
+            <!-- Storage Section -->
+            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-hdd text-gray-400 text-[10px]"></i>
+                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Almacenamiento</h3>
+                    </div>
+                    <span class="text-[10px] text-gray-500 font-bold">{{ metrics.storage.used }} / {{ metrics.storage.total }}</span>
+                </div>
+                <div class="p-4">
+                    <div class="mb-4">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">Capacidad Total</span>
+                            <span class="text-sm font-black text-gray-900">{{ metrics.storage.percent_used }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div class="h-full transition-all duration-500 {% if metrics.storage.percent_used >= 90 %}bg-red-500{% elif metrics.storage.percent_used >= 75 %}bg-yellow-500{% else %}bg-indigo-600{% endif %}" 
+                                 style="width: {{ metrics.storage.percent_used }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {% for vol in metrics.storage.volumes %}
+                        <div class="p-2.5 bg-gray-50/50 border border-gray-100 rounded-sm">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-[10px] font-bold text-gray-700">{{ vol.name }}</span>
+                                <span class="text-[9px] font-black text-gray-500">{{ vol.percent }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1 mb-1.5">
+                                <div class="bg-gray-600 h-1 rounded-full" style="width: {{ vol.percent }}%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-gray-400 font-medium">
+                                <span>{{ vol.used }} usados</span>
+                                <span>{{ vol.total }}</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-span-2 py-6 text-center text-gray-400 text-[10px]">No se detectaron volúmenes</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Events -->
+            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-list-ul text-gray-400 text-[10px]"></i>
+                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Eventos del NAS</h3>
+                    </div>
+                </div>
+                <div class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
+                    {% for log in metrics.activity %}
+                    <div class="p-3 hover:bg-gray-50/50 transition-colors">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 mt-0.5">
+                                {% if log.level == 'err' %}
+                                    <i class="fas fa-exclamation-circle text-red-500 text-[10px]"></i>
+                                {% elif log.level == 'warn' %}
+                                    <i class="fas fa-exclamation-triangle text-yellow-500 text-[10px]"></i>
+                                {% else %}
+                                    <i class="fas fa-info-circle text-blue-500 text-[10px]"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[10.5px] font-medium text-gray-800 leading-normal">{{ log.msg }}</p>
+                                <div class="mt-0.5 flex items-center gap-2 text-[9px] text-gray-400">
+                                    <span class="font-bold text-gray-500 uppercase">{{ log.user }}</span>
+                                    <span class="opacity-30">•</span>
+                                    <span>{{ log.time }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-6 text-center text-gray-400 text-[10px]">Sin eventos recientes</div>
+                    {% endfor %}
+                </div>
+                <div class="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
+                    <a href="{% url 'auditoria:list' %}" class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest">Ver Auditoría NasManager</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Files -->
+        <div class="lg:col-span-4">
+            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden h-full flex flex-col">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-folder-open text-gray-400 text-[10px]"></i>
+                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Archivos Recientes</h3>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto divide-y divide-gray-50">
+                    {% for file in metrics.recent_files %}
+                    <div class="p-3 hover:bg-gray-50 transition-colors group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-gray-50 flex items-center justify-center border border-gray-100 group-hover:bg-white transition-colors">
+                                {% if file.ext == 'pdf' %}
+                                    <i class="fas fa-file-pdf text-red-500 text-[10px]"></i>
+                                {% elif file.ext in 'zip,rar,7z' %}
+                                    <i class="fas fa-file-archive text-orange-400 text-[10px]"></i>
+                                {% elif file.ext in 'jpg,png,gif,svg' %}
+                                    <i class="fas fa-file-image text-purple-400 text-[10px]"></i>
+                                {% elif file.ext in 'doc,docx' %}
+                                    <i class="fas fa-file-word text-blue-500 text-[10px]"></i>
+                                {% elif file.ext in 'xls,xlsx' %}
+                                    <i class="fas fa-file-excel text-green-600 text-[10px]"></i>
+                                {% else %}
+                                    <i class="fas fa-file text-gray-300 text-[10px]"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[11px] font-bold text-gray-800 truncate">{{ file.name }}</p>
+                                <p class="text-[9px] text-gray-400 truncate">{{ file.path }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[9px] font-black text-gray-600 tracking-tighter">{{ file.size }}</p>
+                                <p class="text-[8px] text-gray-400">{{ file.time|truncatechars:10 }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-8 text-center text-gray-400 text-[10px]">No hay archivos recientes</div>
+                    {% endfor %}
+                </div>
+                <div class="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
+                    <a href="#" class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest">Abrir Explorador</a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+    .bg-grid-pattern {
+        background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 15px 15px;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Aquí puedes añadir JS específico del dashboard
-    // Por ejemplo: actualización automática de métricas via AJAX
+        autoRefreshInterval = setInterval(() => {
+            console.log('Auto-refreshing dashboard metrics...');
+            // Aquí podrías agregar AJAX para actualizar solo las métricas
+            // location.reload(); // Por ahora reload completo
+        }, 30000);
+    }
+    
+    // Uncomment to enable auto-refresh
+    // startAutoRefresh();
 </script>
 {% endblock %}

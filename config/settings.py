@@ -58,7 +58,7 @@ LOCAL_APPS = [
     'apps.settings',
     'apps.accounts',  # Sistema de autenticación con Synology
     'apps.usuarios',
-    'apps.groups',    # Administración de grupos
+    'apps.auditoria'
 ]
 
 # Apps solo para DEBUG, y no para produccion
@@ -142,10 +142,16 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Backends de autenticación
 # El orden importa: Django intentará cada backend en orden hasta que uno funcione
+# Backends de autenticación
+# El orden importa: Django intentará cada backend en orden hasta que uno funcione
 AUTHENTICATION_BACKENDS = [
     'apps.accounts.backends.synology_backend.SynologyAuthBackend',  # Primero intenta Synology
     'django.contrib.auth.backends.ModelBackend',  # Fallback a DB local si falla
 ]
+
+# Configuración de Desarrollo/Offline
+# Permite trabajar en la UI sin tener conexión al NAS, simulando respuestas positivas.
+NAS_OFFLINE_MODE = env.bool('NAS_OFFLINE_MODE', default=False)
 
 
 # Internacionalización

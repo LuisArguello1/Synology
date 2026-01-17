@@ -41,6 +41,15 @@ class LoginView(FormView):
             f'✅ Bienvenido, {user.username}!'
         )
         
+        # LOG AUDITORIA
+        from apps.auditoria.services.audit_service import AuditService
+        AuditService.log(
+            action='LOGIN',
+            description=f'Inicio de sesión exitoso: {user.username}',
+            user=user,
+            request=self.request
+        )
+        
         return super().form_valid(form)
     
     def form_invalid(self, form):
@@ -69,6 +78,7 @@ class LogoutView(View):
     """
     
     def post(self, request):
+        user = request.user
         # Obtener SID de sesión
         sid = request.session.get('synology_sid')
         
@@ -87,6 +97,16 @@ class LogoutView(View):
         
         # Cerrar sesión Django
         logout(request)
+        
+        # LOG AUDITORIA (Usamos 'user' capturado antes de logout)
+        if user.is_authenticated:
+            from apps.auditoria.services.audit_service import AuditService
+            AuditService.log(
+                action='LOGOUT',
+                description=f'Cierre de sesión: {user.username}',
+                user=user,
+                request=request
+            )
         
         messages.info(request, 'Has cerrado sesión correctamente')
         return redirect('accounts:login')

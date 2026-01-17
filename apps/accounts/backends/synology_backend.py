@@ -53,15 +53,45 @@ class SynologyAuthBackend(BaseBackend):
                 
                 # Autenticación exitosa en Synology
                 User = get_user_model()
+                
+                # Obtener detalles del usuario para ver grupos (Sincronización de permisos)
+                is_admin = False
+                
+                # En modo offline, forzamos admin para poder desarrollar la UI completa
+                from django.conf import settings
+                if getattr(settings, 'NAS_OFFLINE_MODE', False):
+                    is_admin = True
+                    logger.info(f"🛠️ MODO OFFLINE: Forzando privilegios de administrador para {username}")
+                else:
+                    try:
+                        from apps.usuarios.services.user_service import UserService
+                        user_service = UserService()
+                        user_info = user_service.get_user(username)
+                        if user_info and 'groups' in user_info:
+                            # Buscamos 'administrators' en la lista de nombres de grupos
+                            groups = [g.get('name') for g in user_info.get('groups', [])]
+                            if 'administrators' in groups:
+                                is_admin = True
+                                logger.info(f"👑 Usuario {username} es administrador en Synology")
+                    except Exception as e:
+                        logger.error(f"Error sincronizando grupos de Synology para {username}: {e}")
+                
                 # Crear o actualizar usuario local
                 user, created = User.objects.get_or_create(
                     username=username,
                     defaults={
                         'is_active': True,
-                        'is_staff': True, # Permitir acceso a admin si se desea, o manejarlo por grupos
-                        'email': f"{username}@synology.local" # Dummy email
+                        'is_staff': is_admin,
+                        'is_superuser': is_admin,
+                        'email': f"{username}@synology.local"
                     }
                 )
+                
+                # Actualizar si ya existía pero cambió su estado de admin
+                if not created and (user.is_staff != is_admin):
+                    user.is_staff = is_admin
+                    user.is_superuser = is_admin
+                    user.save()
                 
                 # Guardar datos de Synology en sesión
                 if request:

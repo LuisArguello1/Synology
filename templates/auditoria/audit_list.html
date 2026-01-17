@@ -1,0 +1,86 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %}Auditoría - NAS Manager{% endblock %}
+
+{% block content %}
+<div class="h-full flex flex-col">
+    
+    <!-- Toolbar -->
+    <div class="px-6 py-4 flex items-center justify-between shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800 tracking-tight">{{ page_title }}</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <form method="get" class="relative">
+                <input type="text" name="q" value="{{ q }}" placeholder="Buscar logs..." 
+                       class="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+            </form>
+             <a href="." class="text-gray-400 hover:text-gray-600 p-2 transition-colors" title="Recargar">
+                <i class="fas fa-sync-alt"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="flex-1 overflow-auto bg-gray-50 p-6">
+        <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden mb-4">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Fecha</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Usuario</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Acción</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">IP</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for log in logs %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                            {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ log.user.username|default:"Sistema" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                {{ log.action }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            <a href="{% url 'auditoria:detail' log.id %}" class="hover:text-indigo-600 hover:underline">
+                                {{ log.description }}
+                            </a>
+                            {% if log.details %}
+                            <div class="mt-1 text-xs text-gray-400 font-mono truncate max-w-xs" title="{{ log.details }}">
+                                {{ log.details }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                            {{ log.ip_address|default:"-" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                             <i class="fas fa-clipboard-list text-3xl text-gray-300 mb-3 block"></i>
+                             No hay registros de auditoría.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% include 'components/pagination.html' with page_obj=page_obj %}
+        
+    </div>
+</div>
+{% endblock %}

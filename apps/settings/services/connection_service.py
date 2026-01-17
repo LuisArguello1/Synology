@@ -31,7 +31,11 @@ class ConnectionService:
             self.config = NASConfig.get_active_config()
             
         if not self.config:
-            raise ValueError("No hay configuración NAS activa. Configure el NAS primero.")
+            # En modo offline, permitimos iniciar sin config para simulaciones
+            from django.conf import settings
+            if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+                raise ValueError("No hay configuración NAS activa. Configure el NAS primero.")
+            logger.info("ConnectionService initialized in OFFLINE MODE (No active config)")
         
         # Cache para rutas de API descubiertas
         self.api_paths = {}
@@ -57,12 +61,7 @@ class ConnectionService:
                 'SYNO.FileStation.CreateFolder',
                 'SYNO.FileStation.Delete',
                 'SYNO.FileStation.Rename',
-                'SYNO.FileStation.CopyMove',
-                # Group APIs
-                'SYNO.Core.Group',
-                'SYNO.Core.Group.Member',
-                'SYNO.Core.Group.ValidLocalAdmin',
-                'SYNO.Core.Group.ExtraAdmin'
+                'SYNO.FileStation.CopyMove'
             ]
             
             params = {
@@ -112,12 +111,13 @@ class ConnectionService:
     def test_connection(self):
         """
         Prueba la conexión y disponibilidad del NAS.
-        Modo Simulación: Si falla la conexión real, retorna éxito fingido para testing local.
+        Se basa en si el discovery de APIs funciona correctamente.
         """
         try:
             success = self._discover_apis()
             
             if success:
+                # Verificar info específica de Auth para confirmar compatibilidad
                 auth_info = self.api_paths.get('SYNO.API.Auth', {})
                 max_ver = auth_info.get('maxVersion', 'unknown')
                 
@@ -127,78 +127,196 @@ class ConnectionService:
                     'data': self.api_paths
                 }
             else:
-                # SIMULACIÓN LOCAL
-                logger.warning("Fallo en conexión real. Activando modo simulación local.")
                 return {
-                    'success': True,
-                    'message': '✅ Conexión simulada (Modo Local Demo)',
-                    'data': {}
+                    'success': False,
+                    'message': '❌ El NAS responde pero falló la consulta de APIs (query.cgi).',
+                    'error': 'Discovery Failed'
                 }
                 
-        except (Timeout, ConnectionError, Exception) as e:
-            # SIMULACIÓN LOCAL EN CASO DE ERROR
-            logger.warning(f"Error en conexión real ({str(e)}). Activando modo simulación local.")
+        except Timeout:
             return {
-                'success': True,
-                'message': '✅ Conexión simulada (Modo Local Demo)',
-                'data': {}
+                'success': False,
+                'message': f'❌ Timeout al conectar con {self.config.host}:{self.config.port}',
+                'error': 'timeout'
+            }
+        except ConnectionError as e:
+            return {
+                'success': False,
+                'message': '❌ No se puede establecer conexión de red.',
+                'error': str(e)
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'❌ Error inesperado: {str(e)}',
+                'error': str(e)
             }
 
     def authenticate(self):
         """
-        Autentica usando flujo correcto.
-        Modo Simulación: Si falla, devuelve un SID falso.
+        Autentica usando flujo correcto:
+        1. Consulta ruta de SYNO.API.Auth
+        2. Usa version 3 (o máxima compatible)
+        3. Session = FileStation
         """
-        try:
-            # Intentar conexión real primero
-            try:
-                auth_info = self._get_api_info('SYNO.API.Auth')
-                api_path = auth_info.get('path', 'entry.cgi')
-                max_ver = auth_info.get('maxVersion', 3)
-                
-                use_version = 3 if max_ver >= 3 else max_ver
-                url = f"{self.get_base_url()}/webapi/{api_path}"
-                
-                params = {
-                    'api': 'SYNO.API.Auth',
-                    'version': use_version,
-                    'method': 'login',
-                    'account': self.config.admin_username,
-                    'passwd': self.config.admin_password,
-                    'session': 'FileStation',
-                    'format': 'sid'
-                }
-                
-                response = requests.get(url, params=params, timeout=5, verify=False)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get('success'):
-                        return {
-                            'success': True,
-                            'sid': data['data']['sid'],
-                            'synotoken': data.get('data', {}).get('synotoken'),
-                            'did': data.get('data', {}).get('did')
-                        }
-            except Exception as e:
-                logger.warning(f"Fallo login real: {e}")
-
-            # FALLBACK SIMULACIÓN
-            logger.warning("Activando login simulado.")
+        # Chequeo Modo Offline
+        from django.conf import settings
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            logger.info("OFFLINE MODE: Simulating authentication success")
+            fake_sid = 'OFFLINE_MODE_SID_12345'
+            self._sid = fake_sid
             return {
                 'success': True,
-                'sid': 'DUMMY_SID_FOR_LOCAL_TESTING_12345',
-                'synotoken': None,
-                'did': None
-            }
-                
-        except Exception as e:
-            return { # Fallback final
-                'success': True,
-                'sid': 'DUMMY_SID_FOR_LOCAL_TESTING_12345'
+                'sid': fake_sid,
+                'synotoken': '',
+                'did': ''
             }
 
+        try:
+            # 1. Obtener ruta correcta
+            auth_info = self._get_api_info('SYNO.API.Auth')
+            api_path = auth_info.get('path', 'entry.cgi')
+            max_ver = auth_info.get('maxVersion', 3)
+            
+            # Synology Auth v3 es lo estándar para File Station, pero no pasarnos de 3 si reporta más
+            # El usuario especificó explicitamente v3.
+            use_version = 3
+            if max_ver < 3:
+                use_version = max_ver
+                
+            url = f"{self.get_base_url()}/webapi/{api_path}"
+            
+            logger.info(f"Authenticating via {api_path} (v{use_version})...")
+            
+            params = {
+                'api': 'SYNO.API.Auth',
+                'version': use_version,
+                'method': 'login',
+                'account': self.config.admin_username,
+                'passwd': self.config.admin_password,
+                'session': 'FileStation',   # REQUERIDO: FileStation
+                'format': 'sid'             # Obtenemos SID en JSON
+            }
+            
+            response = requests.get(url, params=params, timeout=15, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('success'):
+                logger.info("✅ Login exitoso")
+                self._sid = data['data']['sid'] # Guardar SID en la instancia
+                return {
+                    'success': True,
+                    'sid': data['data']['sid'],
+                    'synotoken': data.get('data', {}).get('synotoken'),
+                    'did': data.get('data', {}).get('did')
+                }
+            else:
+                error_code = data.get('error', {}).get('code')
+                msg = self._get_auth_error_message(error_code)
+                logger.warning(f"Login failed: {error_code} - {msg}")
+                return {
+                    'success': False,
+                    'error': data.get('error'),
+                    'message': msg
+                }
+                
+        except Exception as e:
+            logger.exception("Error critico en autenticacion")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': f'Error de sistema: {str(e)}'
+            }
+
+    def request(self, api, method, version=1, params=None, sid=None):
+        """
+        Método genérico para realizar peticiones a la API.
+        Maneja:
+        - Discovery de ruta (path)
+        - Inyección de SID (si existe autenticación previa)
+        - Construcción de URL
+        """
+        if params is None:
+            params = {}
+            
+        # Chequeo Modo Offline
+        from django.conf import settings
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            logger.info(f"OFFLINE MODE: Simulating request to {api} / {method}")
+            # Retornar estructuras vacías válidas para evitar crashes en el frontend
+            return {'success': True, 'data': {
+                'users': [], 
+                'groups': [], 
+                'shares': [], 
+                'vol_info': [],
+                'app_privs': [] # Added missing key
+            }}
+
+        try:
+            # 1. Resolver path de la API
+            info = self._get_api_info(api)
+            path = info.get('path', 'entry.cgi')
+            
+            # 2. Construir URL base
+            url = f"{self.get_base_url()}/webapi/{path}"
+            
+            # 3. Preparar parámetros base
+            payload = {
+                'api': api,
+                'version': version,
+                'method': method,
+                **params # Merge con params del usuario
+            }
+            
+            # 4. Inyectar SID (Prioridad: Argumento > self._sid)
+            active_sid = sid or getattr(self, '_sid', None)
+            if active_sid:
+                payload['_sid'] = active_sid
+                
+            # 5. Ejecutar Request
+            # Nota: Synology suele aceptar todo por GET o POST. 
+            # Usamos POST por defecto para acciones que modifiquen datos por seguridad/longitud,
+            # pero GET también es muy comun.
+            # Para 'list' o 'get' info, GET es mejor. Para create/update, POST.
+            # Decisión: GET por defecto para lectura, POST si params son largos?
+            # Simplificación: requests.post suele funcionar universalmente en Synology APIs excepto Auth.
+            if method in ['query', 'list', 'get']:
+                resp = requests.get(url, params=payload, timeout=30, verify=False)
+            else:
+                resp = requests.post(url, data=payload, timeout=30, verify=False)
+                
+            # 6. Procesar respuesta
+            if resp.status_code == 200:
+                try:
+                    return resp.json()
+                except ValueError:
+                    return {'success': False, 'message': 'Invalid JSON response', 'raw': resp.text}
+            else:
+                return {'success': False, 'http_code': resp.status_code, 'message': 'HTTP Error'}
+
+        except Exception as e:
+            logger.error(f"Error in ConnectionService.request({api}, {method}): {e}")
+            return {'success': False, 'message': str(e)}
+
     def logout(self, sid):
-        return True
+        """Cierra sesión usando la ruta correcta"""
+        try:
+            auth_info = self._get_api_info('SYNO.API.Auth')
+            api_path = auth_info.get('path', 'entry.cgi')
+            
+            url = f"{self.get_base_url()}/webapi/{api_path}"
+            params = {
+                'api': 'SYNO.API.Auth',
+                'version': 1,  # Logout suele ser v1
+                'method': 'logout',
+                'session': 'FileStation',
+                '_sid': sid
+            }
+            requests.get(url, params=params, timeout=5, verify=False)
+            return True
+        except Exception:
+            return False
 
     def _get_auth_error_message(self, error_code):
         messages = {
@@ -210,3 +328,6 @@ class ConnectionService:
             407: 'IP bloqueada (demasiados intentos)',
         }
         return messages.get(error_code, f'Error desconocido ({error_code})')
+
+
+        
