@@ -1,62 +1,81 @@
 <div x-show="currentStep === 4" class="space-y-4">
-    <h2 class="text-lg font-semibold text-gray-800">Cuota de usuario</h2>
-    <p class="text-xs text-gray-500">Limite la cantidad de espacio en disco que puede usar el usuario en cada volumen.</p>
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Asignar cuota de usuario</h2>
+    </div>
 
-    <div class="bg-white border border-gray-200 rounded-sm overflow-hidden flex flex-col h-[400px]">
+    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[340px]">
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <div class="w-1/4 px-2">Volumen</div>
-            <div class="w-1/4 px-2">Capacidad Usada</div>
-            <div class="flex-1 px-2">Asignación de Cuota</div>
-            <div class="w-24 px-2">Unidad</div>
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+            <div class="flex-1">Volumen/carpeta c...</div>
+            <div class="w-28 text-center">Cuota efectiva</div>
+            <div class="w-28 text-center">Cuota de grupo</div>
+            <div class="w-40 text-center">Cuota de usuario</div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-0">
-             <template x-for="vol in options.volumes" :key="vol">
-                <div class="flex items-center px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors"
-                     x-data="{ unlimited: true }">
+        <div class="flex-1 overflow-y-auto">
+            <!-- Volume Group Header -->
+            <template x-for="vol in options.volumes" :key="vol">
+                <div>
+                    <!-- Volume Header -->
+                    <div class="flex items-center px-4 py-2 bg-gray-50 border-b border-gray-200">
+                        <div class="flex-1 text-sm font-medium text-gray-700 flex items-center">
+                            <i class="fas fa-chevron-down text-[10px] mr-2 text-gray-400"></i>
+                            <span x-text="vol.replace('/volume', 'Volumen ') + ' (btrfs)'"></span>
+                        </div>
+                        <div class="w-28"></div>
+                        <div class="w-28"></div>
+                        <div class="w-40"></div>
+                    </div>
                     
-                    <!-- Volume Name -->
-                    <div class="w-1/4 px-2 text-xs font-medium text-gray-700 flex items-center">
-                         <i class="fas fa-hdd text-gray-400 mr-2"></i>
-                         <span x-text="vol"></span>
-                    </div>
-
-                    <!-- Used -->
-                    <div class="w-1/4 px-2 text-xs text-gray-500">
-                        0 MB
-                    </div>
-
-                    <!-- Quota Assignment -->
-                    <div class="flex-1 px-2">
-                        <div class="flex items-center space-x-3">
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" x-model="unlimited" 
-                                       @change="if(unlimited) delete formData.quota[vol]; else formData.quota[vol] = { size: 10, unit: 'GB' }"
-                                       class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1">
-                                <span class="ml-2 text-xs text-gray-700">Ilimitado</span>
-                            </label>
+                    <!-- Shares under this volume -->
+                    <template x-for="share in options.shares" :key="share.name">
+                        <div class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors"
+                             x-data="{ editing: false }">
                             
-                            <div x-show="!unlimited" class="w-32">
-                                <input type="number" min="0" 
-                                       @input="if(!formData.quota[vol]) formData.quota[vol] = {size: 0, unit: 'GB'}; formData.quota[vol].size = $event.target.value"
-                                       class="w-full px-2 py-1 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors">
+                            <!-- Share Name (indented) -->
+                            <div class="flex-1 text-sm text-gray-800 pl-6" x-text="share.name"></div>
+
+                            <!-- Cuota efectiva -->
+                            <div class="w-28 text-center text-xs text-gray-500">
+                                No limitar
+                            </div>
+
+                            <!-- Cuota de grupo -->
+                            <div class="w-28 text-center text-xs text-gray-500">
+                                No limitar
+                            </div>
+
+                            <!-- User Quota (Input + Unit) -->
+                            <div class="w-40 flex items-center gap-1.5 justify-center">
+                                <input type="text" 
+                                       :placeholder="'Sin límite'"
+                                       :value="formData.quota[share.name]?.size || ''"
+                                       @input="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: 'GB'}; formData.quota[share.name].size = $event.target.value"
+                                       class="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                <select x-model="formData.quota[share.name] ? formData.quota[share.name].unit : 'GB'"
+                                        @change="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: $event.target.value}"
+                                        class="w-14 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                                    <option value="MB">MB</option>
+                                    <option value="GB" selected>GB</option>
+                                    <option value="TB">TB</option>
+                                </select>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Unit -->
-                    <div class="w-24 px-2">
-                         <select x-show="!unlimited" 
-                                @change="if(formData.quota[vol]) formData.quota[vol].unit = $event.target.value"
-                                class="w-full px-2 py-1 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent bg-white transition-colors">
-                            <option value="MB">MB</option>
-                            <option value="GB" selected>GB</option>
-                            <option value="TB">TB</option>
-                        </select>
-                    </div>
+                    </template>
                 </div>
-             </template>
+            </template>
         </div>
+        
+        <!-- Footer -->
+        <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
+            <span class="text-xs text-gray-500" x-text="(options.shares?.length || 0) + ' elementos'"></span>
+            <button type="button" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-sync-alt text-xs"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div class="text-xs text-blue-700">
+        <span class="text-blue-600 underline">Observación:</span> Puede especificar la Cuota de usuario para un volumen o una carpeta individuales; en caso contrario, se aplicará la Cuota de grupo.
     </div>
 </div>
