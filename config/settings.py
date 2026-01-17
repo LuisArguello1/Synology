@@ -57,6 +57,7 @@ LOCAL_APPS = [
     'apps.core',
     'apps.settings',
     'apps.accounts',  # Sistema de autenticación con Synology
+    'apps.usuarios'
 ]
 
 # Apps solo para DEBUG, y no para produccion
