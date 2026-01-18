@@ -1,0 +1,52 @@
+<div x-show="currentStep === 7" class="space-y-4">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Confirmar configuración</h2>
+        <p class="text-xs text-gray-600 mt-1">Revise los ajustes a continuación.</p>
+    </div>
+
+    <div class="border border-gray-200 rounded-md overflow-hidden bg-white">
+         <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <tbody class="divide-y divide-gray-200">
+                <tr>
+                    <td class="px-4 py-3 font-semibold text-gray-700 w-48 bg-gray-50">Nombre</td>
+                    <td class="px-4 py-3 text-gray-900" x-text="formData.info.name"></td>
+                </tr>
+                 <tr>
+                    <td class="px-4 py-3 font-semibold text-gray-700 bg-gray-50">Descripción</td>
+                    <td class="px-4 py-3 text-gray-900" x-text="formData.info.description || '-'"></td>
+                </tr>
+                 <tr>
+                    <td class="px-4 py-3 font-semibold text-gray-700 bg-gray-50">Miembros</td>
+                    <td class="px-4 py-3 text-gray-900">
+                        <span x-text="formData.members.length > 0 ? formData.members.join(', ') : 'Ninguno'"></span>
+                    </td>
+                </tr>
+                 <tr>
+                    <td class="px-4 py-3 font-semibold text-gray-700 bg-gray-50">Permisos Carpetas</td>
+                    <td class="px-4 py-3 text-gray-900">
+                        <template x-for="(perm, share) in formData.folder_permissions">
+                             <div x-show="perm !== 'na'" class="text-xs">
+                                 <span x-text="share + ': ' + (perm === 'rw' ? 'Lectura/Escritura' : 'Solo lectura')"></span>
+                             </div>
+                        </template>
+                        <span x-show="Object.values(formData.folder_permissions).every(p => p === 'na')" class="text-gray-400 italic">Sin cambios</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-3 font-semibold text-gray-700 bg-gray-50">Aplicaciones</td>
+                    <td class="px-4 py-3 text-gray-900">
+                         <!-- TODO: Show list of allowed apps -->
+                         <span x-text="Object.keys(formData.app_permissions).filter(k => formData.app_permissions[k] === 'allow').join(', ') || 'Ninguna'"></span>
+                    </td>
+                </tr>
+            </tbody>
+         </table>
+    </div>
+    
+     <div class="bg-green-50 border border-green-200 rounded-md p-3 flex items-start">
+        <i class="fas fa-check-circle text-green-600 mt-0.5 mr-2"></i>
+        <p class="text-sm text-green-800">
+            Haga clic en <strong>Finalizar</strong> para aplicar los cambios.
+        </p>
+    </div>
+</div>

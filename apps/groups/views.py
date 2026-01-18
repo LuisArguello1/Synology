@@ -20,6 +20,7 @@ import logging
 
 from .services.group_service import GroupService
 from apps.core.services.resource_service import ResourceService
+from apps.archivos.services.file_service import FileService # Reuse logic if needed or use ResourceService
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,40 @@ class GroupDeleteView(LoginRequiredMixin, View):
     """
     Vista para eliminar un grupo via POST.
     """
+    def get(self, request):
+        """Listar grupos"""
+        service = GroupService()
+        if request.GET.get('format') == 'json':
+            try:
+                groups = service.list_groups()
+                return JsonResponse({'groups': groups})
+            except Exception as e:
+                 return JsonResponse({'groups': [], 'error': str(e)}, status=500)
+            
+        return render(request, 'groups/group_list.html')
+
+class GroupExportView(View):
+    def get(self, request):
+        service = GroupService()
+        groups = service.list_groups()
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="groups.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Nombre', 'Descripción', 'Miembros', 'Sistema'])
+        
+        for group in groups:
+            members = ', '.join(group.get('members', [])) if isinstance(group.get('members'), list) else str(group.get('members', ''))
+            writer.writerow([
+                group.get('name', ''),
+                group.get('description', ''),
+                members,
+                'Sí' if group.get('is_system') else 'No'
+            ])
+            
+        return response
+        
     def post(self, request, *args, **kwargs):
         group_name = request.POST.get('name')
         if not group_name:
@@ -99,6 +134,41 @@ class CreateGroupWizardView(LoginRequiredMixin, View):
         except Exception as e:
             logger.exception("Create Group Error")
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+class GroupWizardOptionsView(View):
+    def get(self, request):
+        service = GroupService()
+        options = service.get_wizard_options()
+        return JsonResponse(options)
+
+class GroupWizardAPIView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            service = GroupService()
+            
+            # Identify mode (create/edit)
+            mode = data.get('mode', 'create')
+            
+            if mode == 'create':
+                result = service.create_group(data)
+            else:
+                # Update Logic
+                # result = service.update_group(data)
+                # For now create generic update method in service
+                 result = service.update_group_wizard(data)
+                 
+            return JsonResponse(result)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+
+class GroupDetailView(View):
+    def get(self, request, name):
+        service = GroupService()
+        group = service.get_group_details(name)
+        if group:
+             return JsonResponse({'success': True, 'data': group})
+        return JsonResponse({'success': False, 'message': 'Group not found'}), 500
 
 
 # === API Endpoints for Wizard Options (Proxy to Services) ===

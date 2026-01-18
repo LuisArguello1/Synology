@@ -1,0 +1,55 @@
+<div x-show="currentStep === 5" class="space-y-4">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Asignar permisos de aplicaciones</h2>
+        <p class="text-xs text-gray-600 mt-1">Controle qué aplicaciones pueden utilizar los miembros del grupo.</p>
+    </div>
+
+     <!-- Filter -->
+    <div class="flex items-center justify-between">
+         <div class="relative w-64">
+            <input type="text" x-model="filters.apps" placeholder="Filtrar aplicaciones..." 
+                class="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <i class="fas fa-search absolute left-2.5 top-2 text-gray-400 text-xs"></i>
+        </div>
+    </div>
+    
+    <!-- Table Container -->
+    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[300px]">
+         <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+             <div class="flex-1">Aplicación</div>
+             <div class="w-24 text-center">Permitir</div>
+             <div class="w-24 text-center">Denegar</div>
+             <div class="w-24 text-center">Por IP</div>
+        </div>
+        
+         <!-- List -->
+        <div class="flex-1 overflow-y-auto">
+             <template x-for="app in filteredApps" :key="app.name">
+                <div class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+                    
+                     <div class="flex-1 min-w-0 pr-4">
+                         <div class="text-sm font-medium text-gray-700" x-text="app.name"></div>
+                         <div class="text-[10px] text-gray-400 truncate" x-text="app.desc || '-'"></div>
+                     </div>
+
+                    <!-- Allow -->
+                     <div class="w-24 flex justify-center">
+                         <input type="checkbox" :checked="formData.app_permissions[app.name] === 'allow'"
+                            @change="formData.app_permissions[app.name] = $event.target.checked ? 'allow' : 'deny'"
+                            class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+                     </div>
+                     
+                     <!-- Deny (Visual negation of Allow mostly, but Synology has explicit Deny which overrides) -->
+                     <!-- Simplification: Checkbox = Allow, Uncheck = Deny/Default.
+                          If we want explicit tri-state similar to Permissions, we need Radios. -->
+                     <div class="w-24 text-center text-xs text-gray-400">
+                          -
+                     </div>
+                     
+                     <div class="w-24 text-center text-xs text-gray-400">-</div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>

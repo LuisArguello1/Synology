@@ -154,9 +154,14 @@ class GroupService:
         Crea un grupo en el NAS.
         Data debe venir limpia desde el form/JSON.
         """
-        name = data.get('name')
+        # Frontend sends { info: { name: ... }, ... }
+        info = data.get('info', {})
+        name = info.get('name') or data.get('name')
+        
         if not name:
              return {'success': False, 'message': 'Name is required'}
+             
+        description = info.get('description') or data.get('description', '')
 
         # --- MODO OFFLINE / SIMULACIÓN ---
         if getattr(settings, 'NAS_OFFLINE_MODE', False):
@@ -284,10 +289,24 @@ class GroupService:
         Obtiene dependencias para el wizard de grupos.
         """
         resource_service = ResourceService()
+        from apps.usuarios.services.user_service import UserService
+        
+        users = []
+        try:
+            user_service = UserService()
+            raw_users = user_service.list_users()
+            for u in raw_users:
+                 users.append({
+                    'username': u.get('name'),
+                    'email': u.get('email', ''),
+                    'description': u.get('description', '')
+                })
+        except:
+            pass
         
         return {
             'shares': resource_service.get_shared_folders(),
             'volumes': resource_service.get_volumes(),
             'apps': resource_service.get_applications(),
-             # TODO: Add users list for membership selection if needed
+            'users': users
         }
