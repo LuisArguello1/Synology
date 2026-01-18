@@ -29,6 +29,11 @@ class MenuService:
             users_url = reverse('usuarios:list')
         except:
             users_url = '#'
+
+        try:
+            group_url = reverse('groups:list')
+        except:
+            group_url = '#'
             
         try:
             audit_url = reverse('auditoria:list')
@@ -73,6 +78,12 @@ class MenuService:
                 'icon': 'users', 
                 'url': users_url,
                 'active': current_path.startswith('/usuarios/')
+            })
+            menu.append({
+                'name': 'Grupos',
+                'icon': 'users', 
+                'url': group_url,
+                'active': current_path.startswith('/grupos/')
             })
             menu.append({
                 'name': 'Auditoría',
