@@ -1,0 +1,40 @@
+{
+    "shares": [
+        {
+            "name": "homes",
+            "path": "/volume1/homes",
+            "description": "User homes"
+        },
+        {
+            "name": "music",
+            "path": "/volume1/music",
+            "description": "Music library"
+        },
+        {
+            "name": "video",
+            "path": "/volume1/video",
+            "description": "Video library"
+        }
+    ],
+    "volumes": [
+        {
+            "name": "/volume1",
+            "total_size": 1073741824000,
+            "used": 214748364800
+        }
+    ],
+    "apps": [
+        {
+            "name": "FileStation",
+            "description": "File Management"
+        },
+        {
+            "name": "DSM",
+            "description": "Desktop UI"
+        },
+        {
+            "name": "FTP",
+            "description": "FTP Service"
+        }
+    ]
+}

@@ -1,5 +1,6 @@
 import logging
 import json
+from django.conf import settings
 from apps.settings.services.connection_service import ConnectionService
 from apps.settings.models import NASConfig
 
@@ -8,15 +9,16 @@ logger = logging.getLogger(__name__)
 class UserService:
     """
     Servicio de orquestación para Gestión de Usuarios Synology.
-    Ubicación: apps/usuarios/services/user_service.py
-    No guarda estado local. Interactúa directamente con SYNO.Core.*
+    Interactúa directamente con SYNO.Core.*
     """
     
     def __init__(self):
         self.config = NASConfig.get_active_config()
         self.connection = ConnectionService(self.config)
-        # Autenticar automáticamente para tener SID disponible en todas las llamadas
-        self.connection.authenticate()
+        # En modo offline, no necesitamos autenticar
+        if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+            # Autenticar automáticamente para tener SID disponible en todas las llamadas
+            self.connection.authenticate()
         
     def list_users(self, limit=50, offset=0):
         """
@@ -104,82 +106,82 @@ class UserService:
     def get_wizard_options(self):
         """
         Obtiene TODAS las dependencias para poblar los selects del Wizard.
-        Incluye permisos de grupos por defecto para la vista previa.
+        Incluye permisos de grupos por defecto para la vista previa dinámica.
         """
+        from apps.groups.services.group_service import GroupService
+        from apps.core.services.resource_service import ResourceService
+        
         options = {
             'groups': [],
             'shares': [],
             'apps': [],
             'volumes': [],
-            'group_defaults': {
-                'shares': {}, # { 'share_name': 'rw/ro/na' }
-                'apps': {}    # { 'app_id': true/false }
-            }
+            'group_permissions': {} # Para cálculos dinámicos en el wizard
         }
         
         try:
-            # 1. Grupos
-            g_resp = self.connection.request('SYNO.Core.Group', 'list', version=1)
-            if g_resp.get('success'):
-                options['groups'] = g_resp['data']['groups']
+            group_service = GroupService()
+            resource_service = ResourceService()
 
-            # 2. Shares (Carpetas)
-            s_resp = self.connection.request('SYNO.Core.Share', 'list', version=1)
-            if s_resp.get('success'):
-                options['shares'] = s_resp['data']['shares']
+            # 1. Grupos (Service)
+            groups = group_service.list_groups()
+            options['groups'] = [{'name': g.get('name'), 'description': g.get('description', '')} for g in groups]
 
-            # 3. Apps (Applications privs) 
-            a_resp = self.connection.request('SYNO.Core.AppPriv', 'list', version=1)
-            if a_resp.get('success'):
-                options['apps'] = a_resp['data']['app_privs']
+            # 2. Shares (Service)
+            shares = resource_service.get_shared_folders()
+            options['shares'] = shares 
+
+            # 3. Apps (Service)
+            apps = resource_service.get_applications()
+            options['apps'] = [{'name': a.get('name'), 'desc': a.get('description')} for a in apps]
             
-            # 4. Volúmenes (para cuotas)
-            v_resp = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1)
-            if v_resp.get('success'):
-                options['volumes'] = [v['path'] for v in v_resp['data']['volumes']]
+            # 4. Volúmenes (Service)
+            options['volumes'] = resource_service.get_volumes()
+            # Simplificar para compatibilidad con código previo si es necesario (extraer solo paths)
+            if options['volumes']:
+                options['volumes_paths'] = [v['name'] for v in options['volumes']]
             else:
-                 options['volumes'] = ['/volume1'] # Fallback
+                options['volumes_paths'] = ['/volume1']
 
             # 5. Obtener permisos de TODOS los grupos (para cálculos dinámicos en el wizard)
-            options['group_permissions'] = {}
-            try:
-                # Intentamos obtener detalles de todos los grupos para la vista previa dinámica
-                group_list = [g['name'] for g in options.get('groups', [])]
-                if group_list:
-                    # El API SYNO.Core.Group method=get suele aceptar múltiples nombres separados por coma
-                    params = {
-                        'name': ",".join(group_list),
-                        'additional': json.dumps(["share_privilege", "app_privilege"])
-                    }
-                    ug_resp = self.connection.request('SYNO.Core.Group', 'get', version=1, params=params)
-                    if ug_resp.get('success') and ug_resp['data']['groups']:
-                        for g_info in ug_resp['data']['groups']:
-                            g_name = g_info['name']
-                            options['group_permissions'][g_name] = {
-                                'shares': {sp['share_name']: sp['privilege'] for sp in g_info.get('share_privilege', [])},
-                                'apps': {}
-                            }
-                            # Apps
-                            apps_priv = g_info.get('app_privilege', {})
-                            if isinstance(apps_priv, dict):
-                                options['group_permissions'][g_name]['apps'] = apps_priv
-                            elif isinstance(apps_priv, list):
-                                for ap in apps_priv:
-                                    options['group_permissions'][g_name]['apps'][ap['app']] = ap.get('allow', False)
-            except Exception as ge:
-                logger.error(f"Error fetching all group permissions: {ge}")
-                # Fallback simple para el grupo 'users' si falla el masivo
+            if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+                try:
+                    group_list = [g['name'] for g in options.get('groups', [])]
+                    if group_list:
+                        params = {
+                            'name': ",".join(group_list),
+                            'additional': json.dumps(["share_privilege", "app_privilege"])
+                        }
+                        ug_resp = self.connection.request('SYNO.Core.Group', 'get', version=1, params=params)
+                        if ug_resp.get('success') and ug_resp['data']['groups']:
+                            for g_info in ug_resp['data']['groups']:
+                                g_name = g_info['name']
+                                options['group_permissions'][g_name] = {
+                                    'shares': {sp['share_name']: sp['privilege'] for sp in g_info.get('share_privilege', [])},
+                                    'apps': {}
+                                }
+                                # Apps
+                                apps_priv = g_info.get('app_privilege', {})
+                                if isinstance(apps_priv, dict):
+                                    options['group_permissions'][g_name]['apps'] = apps_priv
+                                elif isinstance(apps_priv, list):
+                                    for ap in apps_priv:
+                                        options['group_permissions'][g_name]['apps'][ap['app']] = ap.get('allow', False)
+                except Exception as ge:
+                    logger.error(f"Error fetching all group permissions: {ge}")
+            else:
+                # Mock para modo offline si quieres simular herencia de grupos
                 options['group_permissions']['users'] = {'shares': {}, 'apps': {}}
 
         except Exception as e:
             logger.error(f"Error fetching wizard options: {e}")
-            if not options['volumes']: options['volumes'] = ['/volume1']
             
         return options
 
     def apply_user_settings(self, username, data, results):
         """
         Aplica configuraciones complejas (Grupos, Cuotas, Apps, Speed) a un usuario existente.
+        Centraliza la lógica para Reutilización en Create y Update.
         """
         info = data.get('info', {})
         update_params = {'name': username}
@@ -192,10 +194,11 @@ class UserService:
 
         # 1. Grupos
         if 'groups' in data:
+            # Synology espera los grupos separados por coma
             update_params['groups'] = ",".join(data['groups'])
             has_updates = True
 
-        # 2. Permisos de Carpetas
+        # 2. Permisos de Carpetas (Iterativo por limitación de API v1)
         if 'permissions' in data and data['permissions']:
             perm_errors = []
             for share_name, policy in data['permissions'].items():
@@ -206,34 +209,38 @@ class UserService:
                         method='write', version=1,
                         params={'name': share_name, 'user_name': username, 'privilege': policy}
                     )
-                    if not p_resp.get('success'): perm_errors.append(f"{share_name}: {p_resp.get('error')}")
-                except Exception as e: perm_errors.append(f"{share_name}: {str(e)}")
+                    if not p_resp.get('success'): 
+                        error_msg = p_resp.get('error', {}).get('code', 'Unknown')
+                        perm_errors.append(f"{share_name}: Error {error_msg}")
+                except Exception as e: 
+                    perm_errors.append(f"{share_name}: {str(e)}")
             
-            if not perm_errors: results['steps'].append('Folder Permissions Applied')
-            else: results['errors'].append(f"Permission errors: {perm_errors}")
+            if not perm_errors: 
+                results['steps'].append('Folder Permissions Applied')
+            else: 
+                results['errors'].append(f"Permission errors: {perm_errors}")
 
         # 3. Cuotas
         if 'quota' in data and data['quota']:
             quota_list = []
             for vol_path, q_data in data['quota'].items():
-                size_mb = int(q_data.get('size', 0))
-                unit = q_data.get('unit', 'MB')
-                if unit == 'GB': size_mb *= 1024
-                elif unit == 'TB': size_mb *= 1024 * 1024
-                quota_list.append({"volume_path": vol_path, "size_limit": size_mb})
+                try:
+                    size_mb = int(q_data.get('size', 0))
+                    unit = q_data.get('unit', 'MB')
+                    if unit == 'GB': size_mb *= 1024
+                    elif unit == 'TB': size_mb *= 1024 * 1024
+                    quota_list.append({"volume_path": vol_path, "size_limit": size_mb})
+                except: continue
             
             if quota_list:
                 update_params['quota_limit'] = json.dumps(quota_list)
                 has_updates = True
 
-        # 4. Apps (Nuevo formato de objeto)
+        # 4. Aplicaciones
         if 'apps' in data:
             app_list = []
-            all_apps_meta = self.get_wizard_options().get('apps', [])
-            for app_meta in all_apps_meta:
-                app_id = app_meta.get('app')
-                user_setting = data['apps'].get(app_id) # 'allow', 'deny', or None (default)
-                
+            # 'apps' suele venir como dict { 'app_id': 'allow'/'deny' }
+            for app_id, user_setting in data['apps'].items():
                 if user_setting in ['allow', 'deny']:
                     app_list.append({
                         "app": app_id,
@@ -245,7 +252,7 @@ class UserService:
                 update_params['app_privilege'] = json.dumps(app_list)
                 has_updates = True
         
-        # 5. Límites de Velocidad (Per-Service)
+        # 5. Límites de Velocidad
         if 'speed' in data and data['speed']:
             speed_rules = []
             service_map = {'File Station': 'file_station', 'FTP': 'ftp', 'Rsync': 'rsync'}
@@ -269,10 +276,8 @@ class UserService:
                 speed_rules.append(rule)
             
             if speed_rules:
-                # Enviamos tanto el formato extendido (si lo soporta) como el global (para compatibilidad)
                 update_params['speed_limit_rules'] = json.dumps(speed_rules)
-                
-                # Fallback Global basado en File Station
+                # Fallback Global para versiones antiguas basado en File Station
                 fs = data['speed'].get('File Station', {})
                 if fs.get('mode') == 'limit':
                     update_params['speed_limit_up'] = to_kb(fs.get('up'), fs.get('up_unit'))
@@ -283,13 +288,16 @@ class UserService:
                 
                 has_updates = True
 
-        # Ejecutar update consolidado
+        # Ejecutar update consolidado en el NAS
         if has_updates:
             try:
                 resp_up = self.connection.request('SYNO.Core.User', 'update', version=1, params=update_params)
-                if resp_up.get('success'): results['steps'].append('Settings Applied')
-                else: results['errors'].append(f"Settings update failed: {resp_up}")
-            except Exception as e: results['errors'].append(f"Update exception: {str(e)}")
+                if resp_up.get('success'): 
+                    results['steps'].append('Advanced Settings Applied')
+                else: 
+                    results['errors'].append(f"Settings update failed: {resp_up}")
+            except Exception as e: 
+                results['errors'].append(f"Update exception: {str(e)}")
 
         return results
 
@@ -314,14 +322,21 @@ class UserService:
             }
             resp = self.connection.request('SYNO.Core.User', 'create', version=1, params=params)
             if not resp.get('success'):
-                return {'success': False, 'message': f"Synology Error {resp.get('error', {}).get('code')}"}
+                error_msg = resp.get('error', {}).get('code', 'Unknown Error')
+                return {'success': False, 'message': f"Synology Error: {error_msg}"}
             results['steps'].append('User Created')
         except Exception as e:
             return {'success': False, 'message': f'Exception: {str(e)}'}
 
-        # Paso 2: Aplicar configuraciones
+        # Paso 2: Aplicar configuraciones avanzadas
         self.apply_user_settings(username, data, results)
+        
         results['success'] = len(results['errors']) == 0
+        if not results['success']:
+             results['message'] = f"User created but some settings failed: {'; '.join(results['errors'])}"
+        else:
+             results['message'] = "User created successfully with all settings."
+             
         return results
 
     def update_user_wizard(self, data):
@@ -349,5 +364,12 @@ class UserService:
 
         # Paso 2: Aplicar configuraciones avanzadas
         self.apply_user_settings(username, data, results)
+        
         results['success'] = len(results['errors']) == 0
+        if not results['success']:
+             results['message'] = f"Update completed with errors: {'; '.join(results['errors'])}"
+        else:
+             results['message'] = "User updated successfully."
+             
         return results
+

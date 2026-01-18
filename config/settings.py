@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-from pathlib import Path
+
 import environ
 import os
 # Construye rutas dentro del proyecto como esta: BASE_DIR / 'subdir'.
@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.settings',
     'apps.accounts',  # Sistema de autenticación con Synology
     'apps.usuarios',
+    'apps.groups',    
     'apps.auditoria',
     'apps.carpeta',
     'apps.archivos'
