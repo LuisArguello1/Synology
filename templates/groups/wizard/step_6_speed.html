@@ -1,0 +1,61 @@
+<div x-show="currentStep === 6" class="space-y-4">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Establecer límite de velocidad de grupo</h2>
+        <p class="text-xs text-gray-600 mt-1">Configure límites de ancho de banda para diferentes servicios.</p>
+    </div>
+    
+    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[300px]">
+        <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+            <div class="w-28">Servicio</div>
+            <div class="w-28 text-center">Resultado</div>
+            <div class="flex-1 text-center">Límite de velocidad</div>
+            <div class="w-28 text-center">Límite de car...</div>
+            <div class="w-28 text-center">Límite de des...</div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+             <template x-for="serviceName in ['File Station', 'FTP', 'Rsync']" :key="serviceName">
+                <div class="flex items-center px-4 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+                    
+                    <!-- Service Name -->
+                    <div class="w-28 text-sm text-gray-800" x-text="serviceName"></div>
+
+                    <!-- Resultado -->
+                    <div class="w-28 text-center text-xs text-gray-500">
+                         <span x-text="formData.speed_limits[serviceName]?.mode === 'limit' ? ((formData.speed_limits[serviceName].up || 0) + '/' + (formData.speed_limits[serviceName].down || 0)) : 'Sin límite'"></span>
+                    </div>
+
+                    <!-- Límite de velocidad (Dropdown) -->
+                    <div class="flex-1 px-2">
+                        <select x-model="formData.speed_limits[serviceName].mode" 
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                            <option value="unlimited">Sin límite</option>
+                            <option value="limit">Configurar límite de velocidad</option>
+                        </select>
+                    </div>
+
+                    <!-- Upload -->
+                    <div class="w-28 flex items-center justify-center">
+                        <input type="number" min="0"
+                               x-model.number="formData.speed_limits[serviceName].up"
+                               :disabled="formData.speed_limits[serviceName].mode !== 'limit'"
+                               @keydown="if('+-e'.includes($event.key)) $event.preventDefault()"
+                               placeholder="0"
+                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                    </div>
+
+                    <!-- Download -->
+                    <div class="w-28 flex items-center justify-center">
+                         <input type="number" min="0"
+                               x-model.number="formData.speed_limits[serviceName].down"
+                               :disabled="formData.speed_limits[serviceName].mode !== 'limit'"
+                               @keydown="if('+-e'.includes($event.key)) $event.preventDefault()"
+                               placeholder="0"
+                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                    </div>
+                </div>
+             </template>
+        </div>
+    </div>
+</div>

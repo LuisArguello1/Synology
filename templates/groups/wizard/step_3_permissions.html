@@ -1,0 +1,60 @@
+<div x-show="currentStep === 3" class="space-y-4">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Asignar permisos de carpetas compartidas</h2>
+        <p class="text-xs text-blue-600 mt-1 flex items-center gap-1">
+            <i class="fas fa-info-circle"></i>
+            Gestiona el acceso de este grupo a las carpetas compartidas.
+        </p>
+    </div>
+
+    <!-- Filter -->
+    <div class="flex items-center justify-between">
+         <div class="relative w-64">
+            <input type="text" x-model="filters.shares" placeholder="Filtrar carpetas..." 
+                class="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <i class="fas fa-search absolute left-2.5 top-2 text-gray-400 text-xs"></i>
+        </div>
+    </div>
+    
+    <!-- Table Container -->
+    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[300px]">
+        <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-[10px] font-bold text-gray-500 uppercase">
+             <div class="flex-1">Carpeta</div>
+             <div class="w-24 flex-shrink-0 text-center px-1 leading-tight">Lectura / Escritura</div>
+             <div class="w-24 flex-shrink-0 text-center px-1 leading-tight">Solo Lectura</div>
+             <div class="w-24 flex-shrink-0 text-center px-1 leading-tight">Sin Acceso</div>
+        </div>
+        
+        <!-- List -->
+        <div class="flex-1 overflow-y-auto">
+             <template x-for="share in filteredShares" :key="share.path">
+                <div class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+                     
+                     <div class="flex-1 min-w-0 pr-4">
+                         <div class="text-sm font-medium text-gray-700" x-text="share.name"></div>
+                         <div class="text-[10px] text-gray-400 truncate" x-text="share.path"></div>
+                     </div>
+
+                     <!-- RW -->
+                     <div class="w-24 flex justify-center">
+                         <input type="radio" :name="'perm_' + share.name" value="rw" x-model="formData.folder_permissions[share.name]"
+                            class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+                     </div>
+                     
+                     <!-- RO -->
+                     <div class="w-24 flex justify-center">
+                         <input type="radio" :name="'perm_' + share.name" value="ro" x-model="formData.folder_permissions[share.name]"
+                            class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+                     </div>
+                     
+                      <!-- NA -->
+                     <div class="w-24 flex justify-center">
+                         <input type="radio" :name="'perm_' + share.name" value="na" x-model="formData.folder_permissions[share.name]"
+                            class="text-red-600 focus:ring-red-500 cursor-pointer">
+                     </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>

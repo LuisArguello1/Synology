@@ -1,0 +1,310 @@
+<div x-show="wizardOpen" style="display: none;" x-data="groupWizardLogic()"
+    class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    
+    <!-- Backdrop -->
+    <div x-show="wizardOpen" 
+        x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-900/75 transition-opacity z-[101]" @click="wizardOpen = false">
+    </div>
+
+    <!-- Modal Panel -->
+    <div class="fixed inset-0 z-[102] flex items-center justify-center p-4">
+        
+        <div class="bg-white rounded-lg text-left overflow-hidden shadow-2xl transform transition-all w-full max-w-4xl h-[600px] flex">
+            
+            <!-- Left Sidebar (Stepper) -->
+            <div class="w-56 bg-blue-50/50 border-r border-gray-200 flex flex-col pt-6 pb-6 px-4">
+                <h3 class="text-xs font-medium text-gray-600 mb-5 px-2 uppercase tracking-wide">
+                    <span x-text="mode === 'create' ? 'Crear Nuevo Grupo' : 'Editar Grupo'"></span>
+                </h3>
+                
+                <nav class="space-y-1 flex-1">
+                    <template x-for="(step, index) in steps" :key="index">
+                        <button :disabled="currentStep < index + 1" 
+                            class="w-full group flex items-center px-2 py-2 text-xs font-medium rounded transition-colors"
+                            :class="{ 
+                                'bg-blue-100 text-blue-700': currentStep === index + 1,
+                                'text-gray-600 hover:bg-gray-100': currentStep !== index + 1,
+                                'opacity-50 cursor-not-allowed': currentStep < index + 1
+                             }">
+                            <span class="w-5 h-5 flex items-center justify-center rounded-full border mr-2 text-[10px]"
+                                  :class="{
+                                      'bg-blue-600 text-white border-blue-600': currentStep >= index + 1,
+                                      'border-gray-300 text-gray-400': currentStep < index + 1
+                                  }" x-text="index + 1">
+                            </span>
+                            <span x-text="step.label"></span>
+                        </button>
+                    </template>
+                </nav>
+            </div>
+
+            <!-- Right Content -->
+            <div class="flex-1 flex flex-col bg-white">
+                
+                <!-- Main Content Area (Scrollable) -->
+                <div class="flex-1 p-8 overflow-y-auto">
+                    <!-- Loading State -->
+                    <div x-show="loading" class="h-full flex flex-col items-center justify-center text-gray-400">
+                        <i class="fas fa-circle-notch fa-spin text-3xl mb-3 text-indigo-500"></i>
+                        <span class="text-sm">Cargando datos...</span>
+                    </div>
+
+                    <!-- Steps Content -->
+                    <div x-show="!loading">
+                        <form id="wizardForm">
+                            {% include "groups/wizard/step_1_info.html" %}
+                            {% include "groups/wizard/step_2_members.html" %}
+                            {% include "groups/wizard/step_3_permissions.html" %}
+                            {% include "groups/wizard/step_4_quota.html" %}
+                            {% include "groups/wizard/step_5_apps.html" %}
+                            {% include "groups/wizard/step_6_speed.html" %}
+                            {% include "groups/wizard/step_7_confirm.html" %}
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-3 bg-white border-t border-gray-200 flex justify-between items-center shrink-0">
+                    <button @click="wizardOpen = false" type="button" 
+                        class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                        Cancelar
+                    </button>
+
+                    <div class="flex items-center gap-3">
+                        <button x-show="currentStep > 1" @click="prevStep()" type="button" 
+                            class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                            Anterior
+                        </button>
+                        
+                        <button x-show="currentStep < 7" @click="nextStep()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm">
+                            Siguiente
+                        </button>
+                        
+                        <button x-show="currentStep === 7" @click="submitWizard()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm inline-flex items-center"
+                            :disabled="submitting">
+                            <i x-show="submitting" class="fas fa-circle-notch fa-spin mr-2"></i>
+                            <span x-text="submitting ? 'Aplicando...' : 'Finalizado'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function groupWizardLogic() {
+        return {
+            wizardOpen: false, 
+            currentStep: 1,
+            loading: false,
+            submitting: false,
+            mode: 'create', // create | edit
+            
+            // Data sources
+            options: {
+                users: [],
+                shares: [],
+                volumes: [],
+                apps: []
+            },
+            
+            // Form Model
+            formData: {
+                info: { name: '', description: '', is_system: false },
+                members: [], // List of usernames
+                folder_permissions: {}, // { shareName: 'rw'|'ro'|'na' }
+                quotas: {}, // { volPath: { amount: 0, unit: 'MB', is_unlimited: true } }
+                app_permissions: {}, // { appName: 'allow'|'deny' }
+                speed_limits: {
+                    'File Station': { mode: 'unlimited', up: 0, down: 0 },
+                    'FTP': { mode: 'unlimited', up: 0, down: 0 },
+                    'Rsync': { mode: 'unlimited', up: 0, down: 0 }
+                }
+            },
+            
+            // Filters
+            filters: {
+                members: '',
+                shares: '',
+                apps: ''
+            },
+            
+            steps: [
+                { label: 'Información' },
+                { label: 'Miembros' },
+                { label: 'Carpetas' },
+                { label: 'Cuota' },
+                { label: 'Aplicaciones' },
+                { label: 'Límites velocidad' },
+                { label: 'Confirmar' }
+            ],
+
+            // Computed Filters
+            get filteredMembers() {
+                if (!this.options.users) return [];
+                const q = this.filters.members.toLowerCase();
+                return this.options.users.filter(u => 
+                    u.username.toLowerCase().includes(q) || 
+                    (u.email && u.email.toLowerCase().includes(q))
+                );
+            },
+            
+            get filteredShares() {
+                if (!this.options.shares) return [];
+                const q = this.filters.shares.toLowerCase();
+                return this.options.shares.filter(s => s.name.toLowerCase().includes(q));
+            },
+            
+            get filteredApps() {
+                if (!this.options.apps) return [];
+                const q = this.filters.apps.toLowerCase();
+                return this.options.apps.filter(a => a.name.toLowerCase().includes(q));
+            },
+
+            init() {
+                // Initial data reset
+                this._resetForm();
+
+                window.addEventListener('group-wizard-init', (e) => {
+                    const { mode, groupName } = e.detail;
+                    this.mode = mode;
+                    this.wizardOpen = true; // Controlled by parent x-data via event? No, logic inside component.
+                    // Actually parent controlls wizardOpen usually. 
+                    // But here we are inside x-if or included. 
+                    // Let's assume parent sets wizardOpen=true OR dispatches event.
+                    // Current setup: "wizardOpen" is variable in parent scope?
+                    // No, x-data="groupWizardLogic()" is on the modal div. 
+                    // So we need to expose open method or listen to window event.
+                    
+                    this.loading = true;
+                    this.currentStep = 1;
+                    this._resetForm();
+                    
+                    // Fetch options first
+                    this.fetchOptions().then(() => {
+                        if (mode === 'edit' && groupName) {
+                            this.fetchGroupDetails(groupName); 
+                        } else {
+                            this.loading = false;
+                        }
+                    });
+                });
+            },
+            
+            _resetForm() {
+                this.formData = {
+                    info: { name: '', description: '', is_system: false },
+                    members: [],
+                    folder_permissions: {},
+                    quotas: {},
+                    app_permissions: {},
+                    speed_limits: {
+                        'File Station': { mode: 'unlimited', up: 0, down: 0 },
+                        'FTP': { mode: 'unlimited', up: 0, down: 0 },
+                        'Rsync': { mode: 'unlimited', up: 0, down: 0 }
+                    }
+                };
+            },
+
+            toggleAllMembers(checked) {
+                if (checked) {
+                    this.formData.members = this.filteredMembers.map(u => u.username);
+                } else {
+                    this.formData.members = [];
+                }
+            },
+
+            fetchOptions() {
+               // Load users, shares, volumes, apps
+               return fetch('{% url "groups:wizard_options" %}')
+                    .then(r => r.json())
+                    .then(data => {
+                        this.options.users = data.users || []; // need to ensure API returns this
+                        this.options.shares = data.shares || [];
+                        this.options.volumes = data.volumes || [];
+                        this.options.apps = data.apps || [];
+                        
+                        // Initialize permissions dicts
+                        this.options.shares.forEach(s => {
+                             if(!this.formData.folder_permissions[s.name]) 
+                                this.formData.folder_permissions[s.name] = 'na';
+                        });
+                        
+                        // Initialize Quotas
+                        this.options.volumes.forEach(v => {
+                            if (!this.formData.quotas[v.id]) {
+                                this.formData.quotas[v.id] = { amount: 0, unit: 'MB', is_unlimited: true };
+                            }
+                        });
+                        
+                        // Initialize Apps
+                        this.options.apps.forEach(a => {
+                            if (!this.formData.app_permissions[a.name]) {
+                                this.formData.app_permissions[a.name] = 'deny'; // Default
+                            }
+                        });
+                    })
+                    .catch(console.error);
+            },
+
+            fetchGroupDetails(name) {
+                // Call API to get group details
+                fetch('{% url "groups:detail" name="placeholder"%}'.replace('placeholder', name))
+                    .then(r => r.json())
+                    .then(resp => {
+                        if(resp.success) {
+                            const g = resp.data;
+                            this.formData.info.name = g.name;
+                            this.formData.info.description = g.description;
+                            this.formData.info.is_system = g.is_system;
+                            // members
+                            this.formData.members = g.members.map(m => m.name || m); 
+                            // ... map other fields ...
+                        }
+                    })
+                    .finally(() => this.loading = false);
+            },
+
+            nextStep() {
+                if(this.currentStep === 1 && !this.formData.info.name) {
+                    Swal.fire('Error', 'El nombre es obligatorio', 'error');
+                    return;
+                }
+                if(this.currentStep < 7) this.currentStep++;
+            },
+            
+            prevStep() {
+                if(this.currentStep > 1) this.currentStep--;
+            },
+
+            submitWizard() {
+                this.submitting = true;
+                const payload = { ...this.formData, mode: this.mode };
+                
+                fetch('{% url "groups:wizard_api" %}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(r => r.json())
+                .then(resp => {
+                    if(resp.success) {
+                         Swal.fire('Guardado', 'Grupo guardado correctamente', 'success')
+                            .then(() => window.location.reload());
+                    } else {
+                        Swal.fire('Error', resp.message || 'Error desconocido', 'error');
+                    }
+                })
+                .finally(() => this.submitting = false);
+            }
+        }
+    }
+</script>
