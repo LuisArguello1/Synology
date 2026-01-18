@@ -1,0 +1,270 @@
+<!-- Share Wizard Modal -->
+<div x-show="wizardOpen" style="display: none;" 
+    class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    
+    <!-- Backdrop -->
+    <div x-show="wizardOpen" 
+        x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        class="fixed inset-0 bg-gray-900/75 transition-opacity z-[101]" @click="wizardOpen = false">
+    </div>
+
+    <!-- Modal Panel -->
+    <div class="fixed inset-0 z-[102] flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg text-left overflow-hidden shadow-2xl w-full max-w-3xl h-[550px] flex"
+            x-data="shareWizardLogic()">
+            
+            <!-- Left Sidebar -->
+            <div class="w-64 bg-blue-50/50 border-r border-gray-200 flex flex-col pt-6 pb-6 px-4">
+                <h3 class="text-xs font-medium text-gray-600 mb-5 px-2 uppercase tracking-wide">
+                    Asistente de creación de carpeta compartida
+                </h3>
+                
+                <nav class="space-y-1 flex-1">
+                    <template x-for="(step, index) in steps" :key="index">
+                        <button :disabled="currentStep < index + 1" 
+                            class="w-full group flex items-start px-2 py-2 text-xs font-medium rounded transition-colors text-left"
+                            :class="{ 
+                                'bg-blue-100 text-blue-700': currentStep === index + 1,
+                                'text-gray-600 hover:bg-gray-100': currentStep !== index + 1,
+                                'opacity-50 cursor-not-allowed': currentStep < index + 1
+                             }">
+                            <span class="w-5 h-5 flex items-center justify-center shrink-0 rounded-full border mr-2 text-[10px] mt-0.5"
+                                  :class="{
+                                      'bg-blue-600 text-white border-blue-600': currentStep >= index + 1,
+                                      'border-gray-300 text-gray-400': currentStep < index + 1
+                                  }" x-text="index + 1">
+                            </span>
+                            <span x-text="step.label"></span>
+                        </button>
+                    </template>
+                </nav>
+            </div>
+
+            <!-- Right Content -->
+            <div class="flex-1 flex flex-col bg-white">
+                <!-- Header Title Dynamic -->
+                 <div class="border-b border-gray-200 px-8 py-4 bg-gray-50/30">
+                    <h2 class="text-lg font-semibold text-blue-800" x-text="steps[currentStep-1].title"></h2>
+                 </div>
+
+                <!-- Main Content Area -->
+                <div class="flex-1 p-8 overflow-y-auto relative">
+                     <!-- Loading Overlay -->
+                    <div x-show="loading" class="absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
+                        <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                    </div>
+
+                    {% include 'carpeta/wizard/step_1_info.html' %}
+                    {% include 'carpeta/wizard/step_2_security.html' %}
+                    {% include 'carpeta/wizard/step_3_advanced.html' %}
+                    {% include 'carpeta/wizard/step_4_confirm.html' %}
+                </div>
+
+                <!-- Footer Buttons -->
+                <div class="px-6 py-3 bg-white border-t border-gray-200 flex justify-between items-center shrink-0">
+                    <button @click="wizardOpen = false; resetForm()" type="button" 
+                        class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                        Cancelar
+                    </button>
+                    
+                    <div class="flex items-center gap-3">
+                        <button x-show="currentStep > 1" @click="prevStep()" type="button" 
+                            class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                            Anterior
+                        </button>
+                        
+                        <button x-show="currentStep < 4" @click="nextStep()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm">
+                            Siguiente
+                        </button>
+                        
+                        <button x-show="currentStep === 4" @click="submitWizard()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm inline-flex items-center"
+                            :disabled="submitting">
+                            <i x-show="submitting" class="fas fa-circle-notch fa-spin mr-2"></i>
+                            <span x-text="submitting ? 'Aplicando...' : 'Aplicar'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function shareWizardLogic() {
+        return {
+            currentStep: 1,
+            loading: false,
+            submitting: false,
+            options: { volumes: [] },
+            
+            steps: [
+                { label: 'Configurar información básica', title: 'Configurar información básica' },
+                { label: 'Habilitar medidas de seguridad adicionales', title: 'Habilitar medidas de seguridad adicionales' },
+                { label: 'Ajustar configuración avanzada', title: 'Ajustar configuración avanzada' },
+                { label: 'Confirmar configuración', title: 'Confirmar configuración' }
+            ],
+            
+            formData: {
+                info: {
+                    name: '',
+                    description: '',
+                    volume: '/volume1',
+                    hide_network: false,
+                    hide_subfolders: false,
+                    recyclebin: true,
+                    admin_only: true
+                },
+                security: {
+                    encrypted: false,
+                    password: '',
+                    password_confirm: ''
+                },
+                advanced: {
+                    checksum: false,
+                    compression: false,
+                    quota_enabled: false,
+                    quota_size: 0,
+                    quota_unit: 'GB'
+                }
+            },
+            
+            init() {
+                this.$watch('wizardOpen', value => {
+                    if (value) {
+                         this.loadOptions();
+                         if(this.mode === 'create') {
+                            this.resetForm();
+                         } else if (this.mode === 'edit') {
+                            // Cargar datos del usuario seleccionado desde el padre o via API
+                            this.loadShareData();
+                         }
+                    }
+                });
+            },
+            
+            resetForm() {
+                this.currentStep = 1;
+                this.formData = {
+                    info: { name: '', description: '', volume: '/volume1', hide_network: false, hide_subfolders: false, recyclebin: true, admin_only: true },
+                    security: { encrypted: false, password: '', password_confirm: '' },
+                    advanced: { checksum: false, compression: false, quota_enabled: false, quota_size: 0, quota_unit: 'GB' }
+                };
+            },
+            
+            async loadShareData() {
+                 this.loading = true;
+                 try {
+                     // Asumimos que podemos obtener el nombre seleccionado del contexto padre de Alpine
+                     // Pero share_wizard está dentro de list.html, necesitamos pasar el nombre.
+                     // Una forma es usar un evento o store, o más simple: leer variable global/padre si es posible.
+                     // En alpine anidado, podemos acceder a $data del padre si usamos scope correcto, pero aqui es un componente separado.
+                     // Mejor: cuando se abre el modal, el padre setea una variable global o evento.
+                     // Vamos a usar un truco: En list.html, al abrir wizard mode='edit', 
+                     // el componente del wizard DEBERIA recibir el nombre.
+                     // Como están en el mismo x-data raiz en list.html, ¡comparten scope!
+                     // ESPERA: share_wizard.html tiene `x-data="shareWizardLogic()"` PROPIO. Eso aisla el scope.
+                     // SOLUCION: Remover x-data del modal y usar el del padre, o pasar datos.
+                     // Dado que ya definimos x-data="shareWizardLogic()" en el modal, vamos a mejor hacer que 
+                     // el padre despache un evento 'open-wizard-edit' con el nombre.
+                     
+                     // O MÁS SIMPLE: El modal lee de una variable global window.selectedShareForWizard 
+                     // que seteamos en list.html.
+                     
+                     // Correccion: En list.html todo está bajo un x-data principal?
+                     // Si, list.html tiene x-data root. share_wizard.html tiene otro x-data hijo.
+                     // El hijo no ve las propiedades del padre directamente si es un nuevo x-data.
+                     
+                     // VOY A CAMBIAR EL ENFOQUE: Voy a hacer que este loadShareData lea de una propiedad que inyector
+                     // O hacer fetch usando el selectedShare que el padre debe pasar.
+                     // Como arreglar: En list.html, el padre tiene `selectedShare`.
+                     // El hijo puede acceder vía `$dispatch` para pedirlo o `Alpine.store`.
+                     // Pero lo mas facil es hacer fetch aqui usando un nombre que le pasemos al abrir.
+                     
+                     // Asumamos que el padre setea una propiedad en un store global o usamos un evento window.
+                     const name = this.$store ? this.$store.app.selectedShare : document.querySelector('[x-data]').__x.$data.selectedShare;
+                     
+                     const res = await fetch(`{% url "carpeta:wizard_api" %}?name=${name}`);
+                     const data = await res.json();
+                     if(data.success) {
+                         this.formData = data.data;
+                     } // else error
+                     
+                 } catch(e) { console.error(e); }
+                 this.loading = false;
+            },
+            
+            async loadOptions() {
+                this.loading = true;
+                try {
+                    const res = await fetch('{% url "carpeta:wizard_api" %}');
+                    const data = await res.json();
+                    if (data.success) {
+                        this.options = data.data;
+                        if(this.options.volumes.length && !this.formData.info.volume) {
+                            this.formData.info.volume = this.options.volumes[0];
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error loading options", e);
+                }
+                this.loading = false;
+            },
+            
+            nextStep() {
+                // Validation logic per step
+                if (this.currentStep === 1) {
+                    if (!this.formData.info.name) {
+                        alert('El nombre es obligatorio');
+                        return;
+                    }
+                }
+                if (this.currentStep === 2) {
+                     // Corregido: Solo validar si está marcado como 'true' (radio value=true)
+                     // Nota: Alpine x-model booleans con radio puede convertir a string a veces, pero con :value="true" debería ser bool.
+                     // Verificamos explícitamente.
+                     if (this.formData.security.encrypted === true) {
+                         if (!this.formData.security.password || this.formData.security.password !== this.formData.security.password_confirm) {
+                             alert('Las contraseñas no coinciden o están vacías');
+                             return;
+                         }
+                         if (this.formData.security.password.length < 8) {
+                             // Opcional: validación de longitud
+                         }
+                     }
+                }
+                if (this.currentStep < 4) this.currentStep++;
+            },
+            
+            prevStep() {
+                if (this.currentStep > 1) this.currentStep--;
+            },
+            
+            async submitWizard() {
+                this.submitting = true;
+                try {
+                    const payload = { ...this.formData, mode: this.mode };
+                    const res = await fetch('{% url "carpeta:wizard_api" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.wizardOpen = false;
+                        window.location.reload(); 
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                } catch (e) {
+                    alert('Error de conexión');
+                }
+                this.submitting = false;
+            }
+        }
+    }
+</script>

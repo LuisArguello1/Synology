@@ -35,6 +35,16 @@ class MenuService:
         except:
             audit_url = '#'
 
+        try:
+            share_folder_url = reverse('carpeta:list')
+        except:
+            share_folder_url = '#'
+
+        try:
+            my_files_url = reverse('archivos:index')
+        except:
+            my_files_url = '#'
+
         menu = []
         
         # Dashboard siempre visible
@@ -48,48 +58,42 @@ class MenuService:
         # Sección de Sistema
         menu.append({'separator': True, 'label': 'SISTEMA'})
         
-        # Archivos
+        # Mis Archivos
         menu.append({
-            'name': 'Archivos',
+            'name': 'Mis Archivos',
             'icon': 'folder',
-            'url': '#',
-            'active': False
+            'url': my_files_url,
+            'active': current_path.startswith('/archivos/')
         })
         
-        # Gestión de Usuarios y Grupos (Visible para todos por consistencia visual)
-        menu.append({
-            'name': 'Usuarios',
-            'icon': 'users', 
-            'url': users_url,
-            'active': current_path.startswith('/usuarios/')
-        })
-
-        try:
-            groups_url = reverse('groups:list')
-        except:
-            groups_url = '#'
-
-        menu.append({
-            'name': 'Grupos', 
-            'icon': 'users-cog', 
-            'url': groups_url, 
-            'active': current_path.startswith('/groups/')
-        })
-
-        menu.append({
-            'name': 'Auditoría',
-            'icon': 'clipboard-list',
-            'url': audit_url,
-            'active': current_path.startswith('/auditoria/')
-        })
-        
-        # Sección de Configuración
-        menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
-        menu.append({
-            'name': 'NAS Config',
-            'icon': 'cog',
-            'url': settings_url,
-            'active': current_path == settings_url
-        })
+        # Solo para administradores
+        if is_staff:
+            menu.append({
+                'name': 'Usuarios',
+                'icon': 'users', 
+                'url': users_url,
+                'active': current_path.startswith('/usuarios/')
+            })
+            menu.append({
+                'name': 'Auditoría',
+                'icon': 'clipboard-list',
+                'url': audit_url,
+                'active': current_path.startswith('/auditoria/')
+            })
+            menu.append({
+                'name': 'Carpetas Compartidas',
+                'icon': 'folder',
+                'url': share_folder_url,
+                'active': current_path.startswith('/carpeta/')
+            })
+            
+            # Sección de Configuración
+            menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
+            menu.append({
+                'name': 'NAS Config',
+                'icon': 'cog',
+                'url': settings_url,
+                'active': current_path == settings_url
+            })
         
         return menu

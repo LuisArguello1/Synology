@@ -1,0 +1,57 @@
+<div x-show="currentStep === 3" class="space-y-6">
+    <div class="space-y-4">
+        
+        <!-- Checksum -->
+        <div>
+            <label class="flex items-start">
+                <input type="checkbox" x-model="formData.advanced.checksum" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="ml-2 text-sm text-gray-700 flex items-center">
+                    Habilitar la suma de comprobación para la integridad de datos avanzada
+                    <i class="fas fa-info-circle text-blue-400 ml-1.5"></i>
+                </span>
+            </label>
+            <p class="ml-6 mt-1 text-xs text-gray-500">
+                La recuperación automática de archivos y la depuración de datos están disponibles para garantizar la integridad de los datos.
+            </p>
+        </div>
+
+        <!-- Compression -->
+        <div>
+            <label class="flex items-start">
+                <input type="checkbox" x-model="formData.advanced.compression" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="ml-2 text-sm text-gray-700 flex items-center">
+                    Habilitar compresión de archivos
+                    <i class="fas fa-info-circle text-blue-400 ml-1.5"></i>
+                </span>
+            </label>
+        </div>
+
+        <!-- Quota -->
+        <div>
+            <label class="flex items-start">
+                <input type="checkbox" x-model="formData.advanced.quota_enabled" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="ml-2 text-sm text-gray-700">Habilitar la cuota de carpetas compartidas</span>
+            </label>
+            <div class="ml-6 mt-2 flex items-center gap-2" x-show="formData.advanced.quota_enabled">
+                 <input type="number" x-model="formData.advanced.quota_size"
+                        class="w-24 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                 <select x-model="formData.advanced.quota_unit"
+                        class="w-20 px-3 py-1.5 text-sm border border-gray-300 rounded bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                     <option value="MB">MB</option>
+                     <option value="GB">GB</option>
+                     <option value="TB">TB</option>
+                 </select>
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-600 border border-gray-100">
+        <strong class="text-blue-600 undeline mb-2 block">Observación:</strong>
+        <p>Para garantizar la calidad del servicio, recomendamos no habilitar la suma de comprobación de datos en los siguientes casos:</p>
+        <ul class="list-disc list-inside mt-1 space-y-1">
+            <li>Si aloja una base de datos o máquina virtual en esta carpeta compartida</li>
+            <li>Si almacena grabaciones de Surveillance Station en esta carpeta compartida</li>
+        </ul>
+    </div>
+</div>

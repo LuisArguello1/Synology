@@ -39,6 +39,10 @@ class ConnectionService:
         
         # Cache para rutas de API descubiertas
         self.api_paths = {}
+
+    def get_sid(self):
+        """Devuelve el SID actual si existe"""
+        return getattr(self, '_sid', None)
     
     def get_base_url(self):
         """Obtiene URL base sin slash final"""
