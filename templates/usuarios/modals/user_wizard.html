@@ -68,22 +68,31 @@
                     </div>
                 </div>
 
-                <!-- Footer Buttons -->
-                <div class="px-6 py-3 bg-white border-t border-gray-200 flex justify-end items-center gap-3 shrink-0">
-                    <button x-show="currentStep > 1" @click="prevStep()" type="button" class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
-                        Anterior
+                <!-- Footer -->
+                <div class="px-6 py-3 bg-white border-t border-gray-200 flex justify-between items-center shrink-0">
+                    <button @click="wizardOpen = false" type="button" 
+                        class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                        Cancelar
                     </button>
-                    
-                    <button x-show="currentStep < 7" @click="nextStep()" type="button" class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none">
-                        Siguiente
-                    </button>
-                    
-                    <button x-show="currentStep === 7" @click="submitWizard()" type="button" 
-                        class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none inline-flex items-center"
-                        :disabled="submitting">
-                        <i x-show="submitting" class="fas fa-circle-notch fa-spin mr-2"></i>
-                        <span x-text="submitting ? 'Aplicando...' : 'Finalizado'"></span>
-                    </button>
+
+                    <div class="flex items-center gap-3">
+                        <button x-show="currentStep > 1" @click="prevStep()" type="button" 
+                            class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none">
+                            Anterior
+                        </button>
+                        
+                        <button x-show="currentStep < 7" @click="nextStep()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm">
+                            Siguiente
+                        </button>
+                        
+                        <button x-show="currentStep === 7" @click="submitWizard()" type="button" 
+                            class="px-5 py-1.5 text-sm font-medium text-white bg-blue-500 border border-transparent rounded hover:bg-blue-600 focus:outline-none shadow-sm inline-flex items-center"
+                            :disabled="submitting">
+                            <i x-show="submitting" class="fas fa-circle-notch fa-spin mr-2"></i>
+                            <span x-text="submitting ? 'Aplicando...' : 'Finalizado'"></span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -107,8 +116,9 @@
                 quota: {},
                 apps: [],
                 speed: {
-                    upload_value: 0, upload_unit: 'KB',
-                    download_value: 0, download_unit: 'KB'
+                    'File Station': { mode: 'unlimited', up: 0, up_unit: 'KB', down: 0, down_unit: 'KB' },
+                    'FTP': { mode: 'unlimited', up: 0, up_unit: 'KB', down: 0, down_unit: 'KB' },
+                    'Rsync': { mode: 'unlimited', up: 0, up_unit: 'KB', down: 0, down_unit: 'KB' }
                 }
             },
             

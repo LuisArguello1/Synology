@@ -35,6 +35,16 @@ class MenuService:
         except:
             audit_url = '#'
 
+        try:
+            share_folder_url = reverse('carpeta:list')
+        except:
+            share_folder_url = '#'
+
+        try:
+            my_files_url = reverse('archivos:index')
+        except:
+            my_files_url = '#'
+
         menu = []
         
         # Dashboard siempre visible
@@ -48,12 +58,12 @@ class MenuService:
         # Sección de Sistema
         menu.append({'separator': True, 'label': 'SISTEMA'})
         
-        # Archivos (Placeholder para todos por ahora)
+        # Mis Archivos
         menu.append({
-            'name': 'Archivos',
+            'name': 'Mis Archivos',
             'icon': 'folder',
-            'url': '#',
-            'active': False
+            'url': my_files_url,
+            'active': current_path.startswith('/archivos/')
         })
         
         # Solo para administradores
@@ -69,6 +79,12 @@ class MenuService:
                 'icon': 'clipboard-list',
                 'url': audit_url,
                 'active': current_path.startswith('/auditoria/')
+            })
+            menu.append({
+                'name': 'Carpetas Compartidas',
+                'icon': 'folder',
+                'url': share_folder_url,
+                'active': current_path.startswith('/carpeta/')
             })
             
             # Sección de Configuración

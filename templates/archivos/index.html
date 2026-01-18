@@ -1,0 +1,757 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block layout_content %}
+<!-- Fullscreen Desktop Main Container (Overrides Base Layout) -->
+<main class="flex-1 flex flex-col h-full overflow-hidden relative bg-[#f3f4f6]" 
+      x-data="desktopManager()"
+      x-init="initDesktop()"
+      @mousemove="handleDrag($event)"
+      @mouseup="stopDrag()">
+    
+    <!-- Toast/Alerts Container (Floating) -->
+    <div class="absolute top-4 right-4 z-[200] w-80 space-y-2 pointer-events-none">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="bg-white border-l-4 {% if message.tags == 'success' %}border-green-500{% elif message.tags == 'error' %}border-red-500{% else %}border-blue-500{% endif %} shadow-md rounded p-3 pointer-events-auto flex items-start animate-fade-in-down"
+                 x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+                <div class="flex-1">
+                    <p class="text-sm text-gray-800">{{ message }}</p>
+                </div>
+                <button @click="show = false" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Desktop Icons (Root Shares) -->
+    <div class="p-4 grid grid-cols-[repeat(auto-fill,6rem)] grid-rows-[repeat(auto-fill,6rem)] gap-4 content-start h-full z-0 overflow-auto">
+        <template x-for="share in shares" :key="share.path">
+            <div class="group flex flex-col items-center justify-start p-2 rounded cursor-pointer hover:bg-white/50 transition-colors w-24 h-24"
+                 :class="{'bg-blue-200/50 border border-blue-300/50': selectedDesktopItem === share.path}"
+                 @click="selectedDesktopItem = share.path"
+                 @dblclick="openWindow(share.path)">
+                 
+                <!-- Icon -->
+                <div class="w-12 h-12 mb-2 flex items-center justify-center filter drop-shadow-md transition-transform group-hover:scale-105">
+                    <img src="https://img.icons8.com/color/96/folder-invoices--v1.png" alt="folder" draggable="false" class="w-full h-full object-contain">
+                </div>
+                
+                <!-- Label -->
+                <span class="text-xs text-center text-gray-700 font-medium leading-tight line-clamp-2 px-1 rounded"
+                      :class="{'bg-blue-600 text-white': selectedDesktopItem === share.path}"
+                      x-text="share.name"
+                      style="text-shadow: 0 1px 2px rgba(255,255,255,0.8);"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- Floating Window (Explorer) -->
+    <div x-show="win.open" 
+         class="absolute flex flex-col bg-white rounded-lg shadow-2xl border border-gray-300 overflow-hidden transition-all duration-75"
+         :class="{'inset-0 rounded-none': win.maximized}"
+         :style="!win.maximized ? `left: ${win.x}px; top: ${win.y}px; width: ${win.w}px; height: ${win.h}px; z-index: 50;` : 'z-index: 50;'"
+         x-transition:enter="transition ease-out duration-100"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+        <!-- Title Bar -->
+        <div class="bg-gray-100 border-b border-gray-200 h-9 flex items-center justify-between px-3 shrink-0 select-none"
+             @mousedown="startDrag($event)" @dblclick="toggleMaximize()">
+            
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-folder-open text-yellow-500 text-sm"></i>
+                <span class="text-xs font-semibold text-gray-700" x-text="currentFolderName || 'Explorador'"></span>
+            </div>
+
+            <!-- Window Controls -->
+            <div class="flex items-center space-x-2" @mousedown.stop>
+                <div @click="win.open = false" 
+                     class="w-3 h-3 rounded-full bg-yellow-400 hover:bg-yellow-500 border border-yellow-500 cursor-pointer flex items-center justify-center group">
+                     <i class="fas fa-minus text-[8px] text-yellow-800 opacity-0 group-hover:opacity-100"></i>
+                </div>
+                <div @click="toggleMaximize()" 
+                     class="w-3 h-3 rounded-full bg-green-400 hover:bg-green-500 border border-green-500 cursor-pointer flex items-center justify-center group">
+                     <i class="fas fa-expand-arrows-alt text-[8px] text-green-800 opacity-0 group-hover:opacity-100 transform rotate-45"></i>
+                </div>
+                <div @click="win.open = false" 
+                     class="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 border border-red-500 cursor-pointer flex items-center justify-center group">
+                     <i class="fas fa-times text-[8px] text-red-800 opacity-0 group-hover:opacity-100"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toolbar / Ribbon -->
+        <div class="bg-white border-b border-gray-200 p-2 flex items-center space-x-2 shrink-0">
+             <!-- Back/Fwd -->
+             <div class="flex items-center space-x-1 mr-2 text-gray-500">
+                 <button class="p-1 hover:bg-gray-100 rounded disabled:opacity-30" @click="goBack()" :disabled="history.length <= 1">
+                     <i class="fas fa-arrow-left text-sm"></i>
+                 </button>
+                 <button class="p-1 hover:bg-gray-100 rounded disabled:opacity-30" @click="goToStart()">
+                     <i class="fas fa-arrow-up text-sm"></i>
+                 </button>
+             </div>
+
+             <!-- Breadcrumb Input -->
+             <div class="flex-1 border border-gray-300 rounded bg-gray-50 flex items-center px-2 py-1 text-sm text-gray-600 cursor-text hover:border-blue-400 focus-within:bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors h-8">
+                <i class="fas fa-desktop text-gray-400 mr-2 text-xs"></i>
+                <div class="flex items-center flex-1 overflow-hidden whitespace-nowrap">
+                    <span class="hover:bg-blue-100 cursor-pointer px-1 rounded" @click="goToStart()">Este equipo</span>
+                    <template x-for="crumb in breadcrumbs" :key="crumb.path">
+                        <div class="flex items-center">
+                            <span class="mx-0.5 text-gray-400">/</span>
+                            <span class="hover:bg-blue-100 cursor-pointer px-1 rounded truncate" @click="navigateToPath(crumb.path)" x-text="crumb.name"></span>
+                        </div>
+                    </template>
+                </div>
+                <i class="fas fa-sync-alt text-gray-400 hover:translate-x-180 transition-transform cursor-pointer ml-2 text-xs" 
+                   :class="{'fa-spin': loading}" @click="refreshCurrent()"></i>
+             </div>
+
+             <!-- Search -->
+             <div class="w-48 border border-gray-300 rounded bg-white flex items-center px-2 py-1 h-8 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                 <i class="fas fa-search text-gray-400 text-xs mr-2"></i>
+                 <input type="text" x-model="searchQuery" @keydown.enter="performSearch()" placeholder="Buscar..." class="w-full text-sm bg-transparent border-none focus:ring-0 p-0 text-gray-600 placeholder-gray-400 outline-none">
+                 <i class="fas fa-times text-gray-400 cursor-pointer text-xs hover:text-gray-600" x-show="searchQuery" @click="searchQuery=''; performSearch()"></i>
+             </div>
+        </div>
+        
+        <!-- Action Bar (Buttons) -->
+        <div class="bg-gray-50 border-b border-gray-200 px-3 py-1.5 flex items-center space-x-2 shrink-0 text-xs overflow-x-auto">
+             {% include 'components/buttons/btn_primary.html' with type='button' text='Nueva carpeta' icon='folder-plus' extra_attrs='@click="openCreateFolderModal()"' %}
+             
+             <div class="w-px h-4 bg-gray-300 mx-2"></div>
+             
+             <!-- Upload Button (Trigger file input) -->
+             <input type="file" x-ref="fileInput" class="hidden" @change="uploadFiles($el.files)">
+             {% include 'components/buttons/btn_secondary.html' with type='button' text='Subir archivo' icon='upload' extra_attrs='@click="$refs.fileInput.click()"' %}
+             
+             <div class="w-px h-4 bg-gray-300 mx-2"></div>
+
+             <!-- Clipboard Actions -->
+             <button class="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded flex items-center disabled:opacity-40" 
+                     :disabled="selection.length === 0" @click="copySelection(false)">
+                 <i class="fas fa-copy mr-1.5"></i> Copiar
+             </button>
+             <button class="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded flex items-center disabled:opacity-40" 
+                     :disabled="selection.length === 0" @click="copySelection(true)">
+                 <i class="fas fa-cut mr-1.5"></i> Cortar
+             </button>
+             <button class="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded flex items-center disabled:opacity-40" 
+                     :disabled="clipboard.items.length === 0" @click="pasteItems()">
+                 <i class="fas fa-paste mr-1.5"></i> Pegar
+             </button>
+             
+             <div class="w-px h-4 bg-gray-300 mx-2"></div>
+
+             <button class="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded flex items-center disabled:opacity-40" 
+                     :disabled="!isSelectionSingle" @click="openRenameModal()">
+                 <i class="fas fa-i-cursor mr-1.5"></i> Renombrar
+             </button>
+             <button class="px-2 py-1 text-red-600 hover:bg-red-50 rounded flex items-center disabled:opacity-40" 
+                     :disabled="selection.length === 0" @click="openDeleteModal()">
+                 <i class="fas fa-trash-alt mr-1.5"></i> Eliminar
+             </button>
+             
+             <div class="flex-1"></div>
+
+             <!-- View Toggles -->
+             <div class="flex bg-gray-200 rounded p-0.5">
+                 <button class="p-1 rounded text-gray-600 hover:bg-white hover:shadow-sm" :class="{'bg-white shadow-sm text-blue-600': viewMode==='grid'}" @click="viewMode='grid'">
+                     <i class="fas fa-th-large"></i>
+                 </button>
+                 <button class="p-1 rounded text-gray-600 hover:bg-white hover:shadow-sm" :class="{'bg-white shadow-sm text-blue-600': viewMode==='list'}" @click="viewMode='list'">
+                     <i class="fas fa-list"></i>
+                 </button>
+             </div>
+        </div>
+
+        <!-- Main Split Content -->
+        <div class="flex-1 flex overflow-hidden bg-white">
+            
+            <!-- Sidebar -->
+            <div class="w-48 bg-gray-50 border-r border-gray-200 flex flex-col py-2 shrink-0 overflow-y-auto hidden md:flex">
+                 <div class="px-2 mb-1">
+                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Favoritos</span>
+                 </div>
+                 <div class="px-2 py-1 flex items-center text-gray-600 hover:bg-blue-100 rounded cursor-pointer mb-2" @click="goToStart()">
+                     <i class="fas fa-desktop w-5 text-blue-500 text-sm"></i>
+                     <span class="text-sm truncate">Este equipo</span>
+                 </div>
+
+                 <div class="px-2 mb-1 mt-2">
+                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ubicaciones</span>
+                 </div>
+                 <template x-for="share in shares" :key="share.path">
+                     <div class="px-4 py-1 flex items-center text-gray-600 hover:bg-blue-50 cursor-pointer border-l-2 border-transparent"
+                          :class="{'bg-blue-100 text-blue-800 border-blue-500': currentPath.startsWith(share.path)}"
+                          @click="navigateToPath(share.path)">
+                         <i class="fas fa-hdd w-5 text-gray-400 text-sm"></i>
+                         <span class="text-xs truncate" x-text="share.name"></span>
+                     </div>
+                 </template>
+            </div>
+
+            <!-- Content With Drag & Drop Zone -->
+            <div class="flex-1 relative flex flex-col bg-white"  
+                 @click.self="clearSelection()"
+                 @dragover.prevent="dragOver = true"
+                 @dragleave.prevent="dragOver = false"
+                 @drop.prevent="handleDrop($event)">
+                
+                 <!-- Drag Overlay -->
+                 <div x-show="dragOver" class="absolute inset-0 z-30 bg-blue-500/10 border-2 border-dashed border-blue-500 flex items-center justify-center pointer-events-none transition-opacity">
+                     <div class="bg-white p-4 rounded shadow-lg text-center">
+                         <i class="fas fa-cloud-upload-alt text-4xl text-blue-500 mb-2"></i>
+                         <p class="text-blue-600 font-semibold">Soltar archivos para subir</p>
+                     </div>
+                 </div>
+
+                <!-- Loading Overlay -->
+                <div x-show="loading" class="absolute inset-0 z-10 bg-white/60 flex items-center justify-center backdrop-blur-[1px]">
+                    <i class="fas fa-circle-notch fa-spin text-blue-500 text-2xl"></i>
+                </div>
+
+                <!-- Files Area -->
+                <div class="flex-1 overflow-auto p-4" @contextmenu.prevent="showContextMenu($event, null)">
+                    
+                    <!-- GRID View -->
+                    <template x-if="viewMode === 'grid'">
+                        <div class="grid grid-cols-[repeat(auto-fill,6rem)] gap-2 content-start">
+                            <template x-for="item in items" :key="item.path">
+                                <div class="group flex flex-col items-center p-2 rounded border border-transparent hover:bg-blue-50 cursor-pointer"
+                                     :class="{'bg-blue-100 border-blue-200 shadow-sm': isSelected(item)}"
+                                     @click="selectItem(item, $event)"
+                                     @dblclick="openItem(item)"
+                                     @contextmenu.prevent.stop="showContextMenu($event, item)">
+                                     
+                                     <div class="w-12 h-12 mb-1 flex items-center justify-center text-4xl">
+                                         <template x-if="item.is_dir"><img src="https://img.icons8.com/color/96/folder-invoices--v1.png" class="w-full h-full object-contain"></template>
+                                         <template x-if="!item.is_dir"><i class="fas" :class="getFileIcon(item.type)"></i></template>
+                                     </div>
+                                     <span class="text-xs text-center text-gray-700 leading-tight line-clamp-2 w-full break-words px-1 rounded" :class="{'bg-blue-500 text-white': false && isSelected(item)}" x-text="item.name"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- LIST View -->
+                    <template x-if="viewMode === 'list'">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-white sticky top-0 z-10 border-b border-gray-100 text-[11px] text-gray-500">
+                                <tr>
+                                    <th class="py-1 px-2 w-1/2 font-normal">Nombre</th>
+                                    <th class="py-1 px-2 font-normal">Fecha de modificación</th>
+                                    <th class="py-1 px-2 font-normal">Tipo</th>
+                                    <th class="py-1 px-2 text-right font-normal">Tamaño</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-xs text-gray-700">
+                                <template x-for="item in items" :key="item.path">
+                                    <tr class="hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                        :class="{'bg-blue-100': isSelected(item)}"
+                                        @click="selectItem(item, $event)"
+                                        @dblclick="openItem(item)"
+                                        @contextmenu.prevent.stop="showContextMenu($event, item)">
+                                        <td class="py-1.5 px-2 flex items-center">
+                                            <div class="w-4 mr-2 text-center text-base">
+                                                <template x-if="item.is_dir"><img src="https://img.icons8.com/color/48/folder-invoices--v1.png" class="w-4 h-4"></template>
+                                                <template x-if="!item.is_dir"><i class="fas" :class="getFileIcon(item.type)"></i></template>
+                                            </div>
+                                            <span x-text="item.name" class="truncate"></span>
+                                        </td>
+                                        <td class="py-1 px-2 text-gray-500" x-text="formatDate(item.time)"></td>
+                                        <td class="py-1 px-2 text-gray-500 capitalize" x-text="item.type"></td>
+                                        <td class="py-1 px-2 text-gray-500 text-right font-mono" x-text="item.formatted_size"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                </div>
+
+                <!-- Footer Stats -->
+                <div class="h-6 bg-white border-t border-gray-200 flex items-center px-3 text-[10px] text-gray-400 justify-between shrink-0">
+                    <span x-text="items.length + ' elementos'"></span>
+                    <span x-show="selection.length > 0" x-text="selection.length + ' elemento(s) seleccionado(s)'"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resize Handle -->
+         <div class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-50 flex items-end justify-end p-0.5 opacity-50 hover:opacity-100">
+             <div class="w-2 h-2 text-gray-400 fill-current ml-auto mt-auto" @mousedown="startResize($event)">
+                <svg viewBox="0 0 10 10" class="w-2 h-2"><path d="M10 10 L10 0 L0 10 Z" /></svg>
+             </div>
+         </div>
+    </div>
+
+
+    <!-- Context Menu -->
+    <div x-show="contextMenu.visible" 
+         @click.away="contextMenu.visible = false"
+         class="fixed bg-white border border-gray-200 shadow-lg rounded py-1 z-[100] w-48 text-xs select-none"
+         :style="`top: ${contextMenu.y}px; left: ${contextMenu.x}px`">
+         
+         <template x-if="contextMenu.target">
+             <div>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white font-medium" @click.prevent="openItem(contextMenu.target)">Abrir</a>
+                <div class="h-px bg-gray-200 my-1"></div>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" @click.prevent="copySelection(false)">Copiar</a>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" @click.prevent="copySelection(true)">Cortar</a>
+                <div class="h-px bg-gray-200 my-1"></div>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" x-show="contextMenu.target.permissions.can_rename" @click.prevent="openRenameModal()">Cambiar nombre</a>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white text-red-600 hover:text-white" x-show="contextMenu.target.permissions.can_delete" @click.prevent="openDeleteModal()">Eliminar</a>
+                <div class="h-px bg-gray-200 my-1"></div>
+                <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white">Propiedades</a>
+             </div>
+         </template>
+
+         <template x-if="!contextMenu.target">
+            <div>
+               <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" @click.prevent="viewMode = viewMode === 'grid' ? 'list' : 'grid'">
+                   Ver como <span x-text="viewMode === 'grid' ? 'Lista' : 'Iconos'"></span>
+               </a>
+               <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" @click.prevent="refreshCurrent()">Actualizar</a>
+               <div class="h-px bg-gray-200 my-1"></div>
+               <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" :class="{'opacity-50 pointer-events-none': clipboard.items.length === 0}" @click.prevent="pasteItems()">Pegar</a>
+               <div class="h-px bg-gray-200 my-1"></div>
+               <a href="#" class="block px-3 py-1.5 text-gray-700 hover:bg-blue-500 hover:text-white" x-show="permissions.can_create_folder" @click.prevent="openCreateFolderModal()">Nueva carpeta</a>
+            </div>
+         </template>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div x-show="modals.create.open" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/20" x-cloak>
+        <div class="bg-white rounded-lg shadow-2xl w-80 p-4 border border-gray-200" @click.away="modals.create.open = false">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Crear nueva carpeta</h3>
+            <div class="flex flex-col space-y-3">
+                <input type="text" x-model="modals.create.name" @keydown.enter="createFolderSubmit()" 
+                    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    ref="newFolderInput" placeholder="Nombre de la carpeta">
+                <div class="flex justify-end space-x-2">
+                     {% include 'components/buttons/btn_secondary.html' with text='Cancelar' extra_attrs='@click="modals.create.open = false"' %}
+                     <button @click="createFolderSubmit()" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 border border-transparent rounded-sm hover:bg-blue-700 transition-colors">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rename Modal -->
+    <div x-show="modals.rename.open" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/20" x-cloak>
+        <div class="bg-white rounded-lg shadow-2xl w-80 p-4 border border-gray-200" @click.away="modals.rename.open = false">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Cambiar nombre</h3>
+            <div class="flex flex-col space-y-3">
+                <input type="text" x-model="modals.rename.name" @keydown.enter="renameSubmit()" 
+                    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    ref="renameInput">
+                <div class="flex justify-end space-x-2">
+                     {% include 'components/buttons/btn_secondary.html' with text='Cancelar' extra_attrs='@click="modals.rename.open = false"' %}
+                     <button @click="renameSubmit()" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 border border-transparent rounded-sm hover:bg-blue-700 transition-colors">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Modal -->
+    <div x-show="modals.delete.open" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/20" x-cloak>
+        <div class="bg-white rounded-lg shadow-2xl w-96 p-4 border border-gray-200" @click.away="modals.delete.open = false">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">¿Estás seguro de que deseas eliminar?</h3>
+            <p class="text-xs text-gray-500 mb-4" x-text="`Se eliminarán ${selection.length} elemento(s). Esta acción no se puede deshacer.`"></p>
+            <div class="flex justify-end space-x-2">
+                 {% include 'components/buttons/btn_secondary.html' with text='Cancelar' extra_attrs='@click="modals.delete.open = false"' %}
+                 <button @click="deleteSubmit()" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-white bg-red-600 border border-transparent rounded-sm hover:bg-red-700 transition-colors">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<script>
+    function desktopManager() {
+        return {
+            shareList: [], // All root shares
+            selectedDesktopItem: null,
+            dragOver: false, // Drop zone state
+            
+            // Window State
+            win: {
+                open: false,
+                maximized: false,
+                x: 100, y: 50, w: 900, h: 600,
+                dragging: false, resizing: false,
+                startX: 0, startY: 0
+            },
+            
+            // Explorer State (Inside Window)
+            shares: [],
+            items: [],
+            currentPath: '',
+            history: [], // Stack of paths
+            breadcrumbs: [],
+            selection: [],
+            clipboard: { items: [], mode: 'copy' }, // mode: 'copy' | 'move'
+            searchQuery: '',
+            viewMode: 'grid',
+            loading: false,
+            permissions: { can_create_folder: false },
+            
+            // Popups
+            contextMenu: { visible: false, x: 0, y: 0, target: null },
+            modals: { 
+                create: { open: false, name: '' },
+                rename: { open: false, name: '', targetPath: '' },
+                delete: { open: false }
+            },
+
+            initDesktop() {
+                this.loadShares();
+            },
+
+            async loadShares() {
+                 const res = await fetch('{% url "archivos:api_files" %}?action=list_shares');
+                 const data = await res.json();
+                 if(data.success) {
+                     this.shares = data.items;
+                 }
+            },
+
+            // --- Window Logic ---
+            openWindow(path) {
+                // If path is provided, navigate to it inside window
+                this.win.open = true;
+                this.win.maximized = false; // Reset
+                // Center window roughly
+                this.win.x = (window.innerWidth - 900) / 2; 
+                this.win.y = (window.innerHeight - 600) / 2;
+                
+                if(path) this.navigateToPath(path);
+                else this.goToStart();
+            },
+
+            toggleMaximize() {
+                this.win.maximized = !this.win.maximized;
+            },
+
+            startDrag(e) {
+                if(this.win.maximized) return;
+                this.win.dragging = true;
+                this.win.startX = e.clientX - this.win.x;
+                this.win.startY = e.clientY - this.win.y;
+            },
+            
+            handleDrag(e) {
+                if(this.win.dragging) {
+                    this.win.x = e.clientX - this.win.startX;
+                    this.win.y = e.clientY - this.win.startY;
+                    // Boundaries
+                    if(this.win.y < 0) this.win.y = 0;
+                }
+                if(this.win.resizing) {
+                     this.win.w = Math.max(400, e.clientX - this.win.x);
+                     this.win.h = Math.max(300, e.clientY - this.win.y);
+                }
+            },
+            
+            stopDrag() {
+                this.win.dragging = false;
+                this.win.resizing = false;
+            },
+
+            startResize(e) {
+                e.preventDefault();
+                this.win.resizing = true;
+            },
+
+            // --- Explorer Logic (Previously in fileExplorer) ---
+            async navigateToPath(path) {
+                if(!path) return this.goToStart();
+                this.loading = true;
+                this.clearSelection();
+                
+                try {
+                    const res = await fetch(`{% url "archivos:api_files" %}?action=list&path=${encodeURIComponent(path)}`);
+                    const data = await res.json();
+                    
+                    if(data.success) {
+                        this.items = data.items;
+                        this.currentPath = path;
+                        if(this.history[this.history.length-1] !== path) this.history.push(path);
+                        this.updateBreadcrumbs();
+                        this.permissions = { can_create_folder: true, can_upload: true }; // Mock perms
+                    }
+                } catch(e) {}
+                this.loading = false;
+            },
+
+            goToStart() {
+                this.items = this.shares;
+                this.currentPath = '';
+                if(this.history[this.history.length-1] !== '') this.history.push('');
+                this.updateBreadcrumbs();
+                this.permissions = { can_create_folder: false };
+            },
+            
+            goBack() {
+                if(this.history.length > 1) {
+                    this.history.pop();
+                    const prev = this.history.pop();
+                    this.navigateToPath(prev);
+                }
+            },
+
+            refreshCurrent() {
+                if(!this.currentPath) this.loadShares();
+                else this.navigateToPath(this.currentPath);
+            },
+
+            updateBreadcrumbs() {
+                if(!this.currentPath) { this.breadcrumbs = []; return; }
+                const parts = this.currentPath.split('/').filter(Boolean);
+                let accum = '';
+                this.breadcrumbs = parts.map(p => {
+                    accum += '/' + p;
+                    return { name: p, path: accum };
+                });
+            },
+
+            get currentFolderName() {
+                if(!this.currentPath) return 'Este equipo';
+                const parts = this.currentPath.split('/');
+                return parts[parts.length - 1] || 'Carpeta';
+            },
+
+            // --- Item Actions ---
+            selectItem(item, event) {
+                if(event.ctrlKey || event.metaKey) {
+                    if(this.isSelected(item)) this.selection = this.selection.filter(i => i.path !== item.path);
+                    else this.selection.push(item);
+                } else {
+                    this.selection = [item];
+                }
+            },
+            
+            clearSelection() {
+                this.selection = [];
+                this.contextMenu.visible = false;
+            },
+            
+            isSelected(item) { return this.selection.some(i => i.path === item.path); },
+            
+            openItem(item) {
+                if(item.is_dir) this.navigateToPath(item.path);
+                else alert('Vista previa no disponible para: ' + item.name);
+            },
+            
+            get isSelectionSingle() { return this.selection.length === 1; },
+
+            // --- Context Menu ---
+            showContextMenu(event, item) {
+                if(item && !this.isSelected(item)) this.selectItem(item, event);
+                this.contextMenu.target = item;
+                this.contextMenu.x = event.clientX;
+                this.contextMenu.y = event.clientY;
+                this.contextMenu.visible = true;
+            },
+
+            // --- Operations ---
+            openCreateFolderModal() {
+                this.modals.create.name = 'Nueva carpeta';
+                this.modals.create.open = true;
+                this.contextMenu.visible = false;
+                setTimeout(() => { if(this.$refs.newFolderInput) this.$refs.newFolderInput.select(); }, 100);
+            },
+            
+            openRenameModal() {
+                const item = this.selection[0];
+                if(!item) return;
+                this.modals.rename.name = item.name;
+                this.modals.rename.targetPath = item.path;
+                this.modals.rename.open = true;
+                this.contextMenu.visible = false;
+                setTimeout(() => { if(this.$refs.renameInput) this.$refs.renameInput.select(); }, 100);
+            },
+            
+            openDeleteModal() {
+                this.modals.delete.open = true;
+                this.contextMenu.visible = false;
+            },
+
+            async createFolderSubmit() {
+                if(!this.modals.create.name) return;
+                const modal = this.modals.create;
+                
+                const res = await fetch('{% url "archivos:api_files" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({ action: 'create_folder', path: this.currentPath, name: modal.name })
+                });
+                const data = await res.json();
+                if(data.success) { modal.open = false; this.refreshCurrent(); }
+                else alert('Error: ' + (data.error?.msg || 'Desconocido'));
+            },
+            
+            async renameSubmit() {
+                const modal = this.modals.rename;
+                if(!modal.name) return;
+                
+                const res = await fetch('{% url "archivos:api_files" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({ action: 'rename', path: modal.targetPath, name: modal.name })
+                });
+                const data = await res.json();
+                if(data.success) { modal.open = false; this.refreshCurrent(); }
+                 else alert('Error: ' + (data.error?.msg || 'Desconocido'));
+            },
+
+            async deleteSubmit() {
+                for(let item of this.selection) {
+                    await fetch('{% url "archivos:api_files" %}', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({ action: 'delete', path: item.path })
+                    });
+                }
+                this.modals.delete.open = false;
+                this.refreshCurrent();
+            },
+
+            // --- Upload Logic ---
+            handleDrop(event) {
+                this.dragOver = false;
+                const files = event.dataTransfer.files;
+                if(files.length > 0) this.uploadFiles(files);
+            },
+            
+            async uploadFiles(files) {
+                if(!this.currentPath) {
+                    alert('No se pueden subir archivos en la raíz. Entra a una carpeta.');
+                    return;
+                }
+                
+                this.loading = true;
+                for(let i=0; i<files.length; i++) {
+                     const formData = new FormData();
+                     formData.append('path', this.currentPath);
+                     formData.append('file', files[i]);
+                     
+                     try {
+                         const res = await fetch('{% url "archivos:api_upload" %}', {
+                             method: 'POST',
+                             headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                             body: formData
+                         });
+                         const data = await res.json();
+                         if(!data.success) {
+                             console.error('Error uploading', files[i].name, data);
+                             alert(`Error al subir ${files[i].name}`);
+                         }
+                     } catch(e) {
+                         console.error(e);
+                     }
+                }
+                this.loading = false;
+                this.refreshCurrent();
+            },
+
+            // --- Clipboard Logic ---
+            copySelection(cut = false) {
+                if(this.selection.length === 0) return;
+                this.clipboard.items = [...this.selection];
+                this.clipboard.mode = cut ? 'move' : 'copy';
+                this.contextMenu.visible = false;
+                
+                // Optional: Visual feedback (toast?)
+                // alert(`${this.selection.length} elementos copiados al portapapeles (${cut ? 'Cortar' : 'Copiar'})`);
+            },
+
+            async pasteItems() {
+                if(this.clipboard.items.length === 0 || !this.currentPath) return;
+                
+                this.loading = true;
+                this.contextMenu.visible = false;
+                
+                const action = this.clipboard.mode; // 'copy' or 'move'
+                const paths = this.clipboard.items.map(i => i.path).join(',');
+                
+                try {
+                    const res = await fetch('{% url "archivos:api_files" %}', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({ 
+                            action: action, 
+                            path: paths, 
+                            dest: this.currentPath 
+                        })
+                    });
+                    const data = await res.json();
+                    
+                    if(data.success) {
+                        this.refreshCurrent();
+                        if(action === 'move') this.clipboard.items = []; // Clear if moved
+                    } else {
+                        alert('Error al pegar: ' + (data.error?.msg || JSON.stringify(data.error)));
+                    }
+                } catch(e) {
+                    console.error("Paste error", e);
+                    alert("Error de red al pegar");
+                }
+                
+                this.loading = false;
+            },
+
+            // --- Search Logic ---
+            async performSearch() {
+                if(!this.searchQuery) {
+                    this.refreshCurrent();
+                    return;
+                }
+                
+                if(!this.currentPath) {
+                    alert("Navega a una carpeta para buscar.");
+                    return;
+                }
+
+                this.loading = true;
+                try {
+                     const res = await fetch('{% url "archivos:api_files" %}', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({ 
+                            action: 'search', 
+                            path: this.currentPath, 
+                            pattern: this.searchQuery 
+                        })
+                    });
+                    const data = await res.json();
+                    if(data.success) {
+                        this.items = data.items;
+                        // Mantenemos currentPath, solo cambiamos la vista de items
+                    }
+                } catch(e) { console.error(e); }
+                this.loading = false;
+            },
+
+            // --- Utils ---
+            getFileIcon(type) {
+                const map = {
+                    'image': 'fa-file-image text-purple-500',
+                    'document': 'fa-file-alt text-blue-500',
+                    'archive': 'fa-file-archive text-red-500',
+                    'unknown': 'fa-file text-gray-400'
+                };
+                return map[type] || map['unknown'];
+            },
+            
+            formatDate(timestamp) {
+                if(!timestamp) return '-';
+                return new Date(timestamp * 1000).toLocaleDateString() + ' ' + new Date(timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+        }
+    }
+</script>
+{% endblock %}
