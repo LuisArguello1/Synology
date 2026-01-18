@@ -38,7 +38,7 @@ class LoginView(FormView):
         
         messages.success(
             self.request,
-            f'✅ Bienvenido, {user.username}!'
+            f'Bienvenido, {user.username}!'
         )
         
         # LOG AUDITORIA

@@ -60,6 +60,6 @@ class InitialSetupView(CreateView):
         
         messages.success(
             self.request, 
-            f"✅ ¡Conexión exitosa! NAS configurado en {temp_config.host}. Ahora inicia sesión."
+            f"¡Conexión exitosa! NAS configurado en {temp_config.host}. Ahora inicia sesión."
         )
         return redirect(self.success_url)
