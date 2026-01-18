@@ -41,3 +41,17 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['page_title'] = 'Dashboard'
         
         return context
+
+
+from django.http import JsonResponse
+from django.views import View
+
+class DashboardMetricsView(LoginRequiredMixin, View):
+    """
+    API endpoint para obtener métricas del dashboard en JSON.
+    Permite actualizaciones asíncronas sin recargar la página.
+    """
+    def get(self, request, *args, **kwargs):
+        metrics_service = MetricsService()
+        metrics = metrics_service.get_dashboard_metrics()
+        return JsonResponse(metrics)

@@ -49,6 +49,7 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/message.css' %}">
+    <link rel="stylesheet" href="{% static 'css/sidebar.css' %}">
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -92,44 +93,47 @@
 </head>
 <body class="h-full bg-gray-50 antialiased">
     
-    <!-- Layout principal con Flexbox -->
-    <div class="flex h-full">
+    <!-- Floating Icon for Minimized Mode -->
+    <div id="sidebar-floating-icon" class="sidebar-floating-icon" aria-hidden="true" role="button" aria-label="Restaurar barra lateral" tabindex="0">
+        <i class="fas fa-bars text-xl"></i>
+    </div>
+
+    <!-- Mobile OverlayBackdrop -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity duration-300 opacity-0" aria-hidden="true"></div>
+
+    <!-- Sidebar -->
+    {% include 'partials/sidebar.html' with menu_items=menu_items %}
+    
+    <!-- Área de contenido principal -->
+    <div id="main-layout">
         
-        <!-- Sidebar -->
-        {% include 'partials/sidebar.html' with menu_items=menu_items %}
+        <!-- Navbar -->
+        {% include 'components/navbar.html' with page_title=page_title breadcrumbs=breadcrumbs %}
         
-        <!-- Área de contenido principal -->
-        <div class="flex-1 flex flex-col min-w-0">
-            
-            <!-- Navbar -->
-            {% include 'components/navbar.html' with page_title=page_title breadcrumbs=breadcrumbs %}
-            
-            <!-- Contenido principal -->
-            <!-- Contenido principal -->
-            {% block layout_content %}
-            <main class="flex-1 overflow-y-auto">
-                <div class="container mx-auto px-6 py-6">
-                    
-                    <!-- Mensajes de Django -->
-                    {% include 'fragments/alerts.html' %}
-                    
-                    <!-- Contenido de la página -->
-                    {% block content %}
-                        <!-- El contenido de cada página va aquí -->
-                    {% endblock %}
-                    
+        <!-- Contenido principal -->
+        {% block layout_content %}
+        <main class="w-full">
+            <div class="container mx-auto px-6 py-6 h-full">
+                
+                <!-- Mensajes de Django -->
+                {% include 'fragments/alerts.html' %}
+                
+                <!-- Contenido de la página -->
+                {% block content %}
+                    <!-- El contenido de cada página va aquí -->
+                {% endblock %}
+                
                 </div>
-            </main>
-            {% endblock %}
-            
-            <!-- Footer -->
-            {% comment %} {% include 'partials/footer.html' %} {% endcomment %}
-            
-        </div>
+        </main>
+        {% endblock %}
+        
     </div>
     
     <!-- Scripts globales -->
     {% include 'partials/scripts.html' %}
+    
+    <!-- Sidebar Controller -->
+    <script type="module" src="{% static 'js/sidebar.js' %}"></script>
     
     <!-- Block para JS adicional -->
     {% block extra_js %}{% endblock %}

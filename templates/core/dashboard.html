@@ -25,11 +25,11 @@
                 </div>
                 <div>
                     <p class="text-[9px] text-gray-500 font-bold uppercase tracking-tighter">Sesiones</p>
-                    <p class="text-xs font-bold text-gray-900 leading-none">{{ metrics.connections.total }}</p>
+                    <p id="metric-sessions" class="text-xs font-bold text-gray-900 leading-none">{{ metrics.connections.total }}</p>
                 </div>
             </div>
             {% endif %}
-            <button onclick="location.reload()" class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-[11px] font-bold rounded-sm text-gray-700 bg-white hover:bg-gray-50 transition-all uppercase tracking-wider">
+            <button id="btn-refresh-metrics" class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-[11px] font-bold rounded-sm text-gray-700 bg-white hover:bg-gray-50 transition-all uppercase tracking-wider">
                 <i class="fas fa-sync-alt mr-1.5 text-[10px]"></i>
                 Actualizar
             </button>
@@ -63,11 +63,11 @@
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">CPU</span>
             </div>
             <div class="flex items-baseline">
-                <p class="text-lg font-black text-gray-900">{{ metrics.system.cpu_usage }}</p>
+                <p id="metric-cpu" class="text-lg font-black text-gray-900">{{ metrics.system.cpu_usage }}</p>
                 <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
             </div>
             <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
-                <div class="bg-blue-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.cpu_usage }}%"></div>
+                <div id="bar-cpu" class="bg-blue-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.cpu_usage }}%"></div>
             </div>
         </div>
 
@@ -80,11 +80,11 @@
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">RAM</span>
             </div>
             <div class="flex items-baseline">
-                <p class="text-lg font-black text-gray-900">{{ metrics.system.memory_usage }}</p>
+                <p id="metric-ram" class="text-lg font-black text-gray-900">{{ metrics.system.memory_usage }}</p>
                 <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
             </div>
             <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
-                <div class="bg-purple-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.memory_usage }}%"></div>
+                <div id="bar-ram" class="bg-purple-600 h-1 rounded-full transition-all duration-500" style="width: {{ metrics.system.memory_usage }}%"></div>
             </div>
         </div>
 
@@ -97,7 +97,7 @@
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Temp</span>
             </div>
             <div class="flex items-baseline">
-                <p class="text-lg font-black text-gray-900">{{ metrics.system.temperature }}</p>
+                <p id="metric-temp" class="text-lg font-black text-gray-900">{{ metrics.system.temperature }}</p>
                 <p class="ml-0.5 text-[10px] font-bold text-gray-400">°C</p>
             </div>
             <div class="mt-2 flex items-center text-[9px] text-gray-500">
@@ -115,7 +115,7 @@
                 <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Uptime</span>
             </div>
             <div class="flex items-baseline">
-                <p class="text-lg font-black text-gray-900">{{ metrics.system.uptime_days }}</p>
+                <p id="metric-uptime" class="text-lg font-black text-gray-900">{{ metrics.system.uptime_days }}</p>
                 <p class="ml-1 text-[10px] font-bold text-gray-700 uppercase">Días</p>
             </div>
             <div class="mt-2 flex items-center text-[9px] text-green-600 font-bold">
@@ -141,21 +141,23 @@
                         <i class="fas fa-hdd text-gray-400 text-[10px]"></i>
                         <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Almacenamiento</h3>
                     </div>
-                    <span class="text-[10px] text-gray-500 font-bold">{{ metrics.storage.used }} / {{ metrics.storage.total }}</span>
                 </div>
                 <div class="p-4">
                     <div class="mb-4">
                         <div class="flex justify-between items-end mb-1">
                             <span class="text-[10px] font-bold text-gray-500 uppercase">Capacidad Total</span>
-                            <span class="text-sm font-black text-gray-900">{{ metrics.storage.percent_used }}%</span>
+                            <div class="flex items-center gap-2">
+                                <span id="metric-storage-used" class="text-[10px] font-bold text-gray-500">{{ metrics.storage.used }} / {{ metrics.storage.total }}</span>
+                                <span id="metric-storage-percent" class="text-sm font-black text-gray-900">{{ metrics.storage.percent_used }}%</span>
+                            </div>
                         </div>
                         <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div class="h-full transition-all duration-500 {% if metrics.storage.percent_used >= 90 %}bg-red-500{% elif metrics.storage.percent_used >= 75 %}bg-yellow-500{% else %}bg-indigo-600{% endif %}" 
+                            <div id="bar-storage" class="h-full transition-all duration-500 {% if metrics.storage.percent_used >= 90 %}bg-red-500{% elif metrics.storage.percent_used >= 75 %}bg-yellow-500{% else %}bg-indigo-600{% endif %}" 
                                  style="width: {{ metrics.storage.percent_used }}%"></div>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div id="grid-volumes" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {% for vol in metrics.storage.volumes %}
                         <div class="p-2.5 bg-gray-50/50 border border-gray-100 rounded-sm">
                             <div class="flex items-center justify-between mb-1.5">
@@ -185,7 +187,7 @@
                         <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Eventos del NAS</h3>
                     </div>
                 </div>
-                <div class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
+                <div id="list-events" class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
                     {% for log in metrics.activity %}
                     <div class="p-3 hover:bg-gray-50/50 transition-colors">
                         <div class="flex items-start gap-3">
@@ -227,7 +229,7 @@
                         <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Archivos Recientes</h3>
                     </div>
                 </div>
-                <div class="flex-1 overflow-y-auto divide-y divide-gray-50">
+                <div id="list-files" class="flex-1 overflow-y-auto divide-y divide-gray-50">
                     {% for file in metrics.recent_files %}
                     <div class="p-3 hover:bg-gray-50 transition-colors group">
                         <div class="flex items-center gap-3">
@@ -279,15 +281,10 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/components/skeleton.js"></script>
+<script src="/static/js/dashboard_metrics.js"></script>
 <script>
-        autoRefreshInterval = setInterval(() => {
-            console.log('Auto-refreshing dashboard metrics...');
-            // Aquí podrías agregar AJAX para actualizar solo las métricas
-            // location.reload(); // Por ahora reload completo
-        }, 30000);
-    }
-    
-    // Uncomment to enable auto-refresh
-    // startAutoRefresh();
+    // Se puede iniciar auto-refresh si se desea
+    startDashboardAutoRefresh(30000); 
 </script>
 {% endblock %}

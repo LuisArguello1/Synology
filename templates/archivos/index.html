@@ -3,7 +3,8 @@
 
 {% block layout_content %}
 <!-- Fullscreen Desktop Main Container (Overrides Base Layout) -->
-<main class="flex-1 flex flex-col h-full overflow-hidden relative bg-[#f3f4f6]" 
+<main class="flex-1 flex flex-col overflow-hidden relative bg-[#f3f4f6]" 
+      style="height: calc(100vh - 4rem);"
       x-data="desktopManager()"
       x-init="initDesktop()"
       @mousemove="handleDrag($event)"
@@ -52,7 +53,7 @@
     <div x-show="win.open" 
          class="absolute flex flex-col bg-white rounded-lg shadow-2xl border border-gray-300 overflow-hidden transition-all duration-75"
          :class="{'inset-0 rounded-none': win.maximized}"
-         :style="!win.maximized ? `left: ${win.x}px; top: ${win.y}px; width: ${win.w}px; height: ${win.h}px; z-index: 50;` : 'z-index: 50;'"
+         :style="!win.maximized ? `left: ${win.x}px; top: ${win.y}px; width: ${win.w}px; height: ${win.h}px; z-index: 30;` : 'z-index: 30;'"
          x-transition:enter="transition ease-out duration-100"
          x-transition:enter-start="opacity-0 scale-95"
          x-transition:enter-end="opacity-100 scale-100">
