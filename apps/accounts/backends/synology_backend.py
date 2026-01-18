@@ -36,20 +36,28 @@ class SynologyAuthBackend(BaseBackend):
             
             temp_config = TempConfig(config, username, password)
             
-            # Usar servicio con config temporal
-            service = ConnectionService(temp_config)
+            # En modo offline, no intentamos conectar al NAS real
+            from django.conf import settings
+            offline_mode = getattr(settings, 'NAS_OFFLINE_MODE', False)
             
-            # Log detallado antes de autenticar
-            logger.info(f"🔐 Intentando autenticar usuario: {username}")
-            logger.info(f"📡 NAS: {temp_config.get_base_url()}")
+            if offline_mode:
+                logger.info(f"🛠️ MODO OFFLINE: Simulando éxito de autenticación para {username}")
+                result = {'success': True, 'sid': 'fake-sid-offline', 'synotoken': 'fake-token'}
+            else:
+                # Usar servicio con config temporal para probar contra el NAS REAL
+                service = ConnectionService(temp_config)
+                
+                # Log detallado antes de autenticar
+                logger.info(f"🔐 Intentando autenticar usuario: {username}")
+                logger.info(f"📡 NAS: {temp_config.get_base_url()}")
+                
+                result = service.authenticate()
+                
+                # Log detallado del resultado
+                logger.info(f"📊 Resultado de autenticación: {result}")
             
-            result = service.authenticate()
-            
-            # Log detallado del resultado
-            logger.info(f"📊 Resultado de autenticación: {result}")
-            
-            if result['success']:
-                logger.info(f"Usuario {username} autenticado exitosamente en Synology")
+            if result.get('success'):
+                logger.info(f"Usuario {username} autenticado correctamente")
                 
                 # Autenticación exitosa en Synology
                 User = get_user_model()

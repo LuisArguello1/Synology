@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.settings',
     'apps.accounts',  # Sistema de autenticación con Synology
     'apps.usuarios',
+    'apps.groups',    
     'apps.auditoria'
 ]
 

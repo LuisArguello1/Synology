@@ -1,21 +1,21 @@
-"""
-URLs para la app Groups.
-"""
 from django.urls import path
 from . import views
 
 app_name = 'groups'
 
 urlpatterns = [
-    # Vistas principales
+    # Main List
     path('', views.GroupListView.as_view(), name='list'),
-    path('export/', views.GroupExportView.as_view(), name='export'),
-    path('<int:pk>/delete/', views.GroupDeleteView.as_view(), name='delete'),
     
-    # APIs para wizard (JSON responses)
+    # Actions
+    path('delete/', views.GroupDeleteView.as_view(), name='delete'), # Now a POST endpoint mostly
+    path('export/', views.GroupExportView.as_view(), name='export'),
+    
+    # API / Wizard
+    path('api/create/', views.CreateGroupWizardView.as_view(), name='api_create'),
     path('api/users/', views.get_available_users, name='api_users'),
-    path('api/folders/', views.get_shared_folders, name='api_folders'),
+    path('api/shares/', views.get_shared_folders, name='api_shares'),
     path('api/volumes/', views.get_volumes, name='api_volumes'),
-    path('api/applications/', views.get_applications, name='api_applications'),
-    path('api/create/', views.create_group_wizard, name='api_create'),
+    path('api/apps/', views.get_applications, name='api_apps'),
+    path('api/detail/<str:name>/', views.get_group_detail, name='api_detail'),
 ]

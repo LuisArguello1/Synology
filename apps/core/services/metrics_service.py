@@ -1,4 +1,6 @@
 import logging
+import json
+from django.conf import settings
 from apps.settings.services.connection_service import ConnectionService
 from apps.settings.models import NASConfig
 
@@ -11,6 +13,11 @@ class MetricsService:
     
     def __init__(self):
         self.config = NASConfig.get_active_config()
+        # En modo offline, no necesitamos autenticar
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            self.connected = True
+            return
+
         # Intentamos conectar, si falla, métodos devolverán estado vacío/error graceful
         try:
             self.connection = ConnectionService(self.config)

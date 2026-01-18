@@ -48,7 +48,7 @@ class MenuService:
         # Sección de Sistema
         menu.append({'separator': True, 'label': 'SISTEMA'})
         
-        # Archivos (Placeholder para todos por ahora)
+        # Archivos
         menu.append({
             'name': 'Archivos',
             'icon': 'folder',
@@ -56,28 +56,40 @@ class MenuService:
             'active': False
         })
         
-        # Solo para administradores
-        if is_staff:
-            menu.append({
-                'name': 'Usuarios',
-                'icon': 'users', 
-                'url': users_url,
-                'active': current_path.startswith('/usuarios/')
-            })
-            menu.append({
-                'name': 'Auditoría',
-                'icon': 'clipboard-list',
-                'url': audit_url,
-                'active': current_path.startswith('/auditoria/')
-            })
-            
-            # Sección de Configuración
-            menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
-            menu.append({
-                'name': 'NAS Config',
-                'icon': 'cog',
-                'url': settings_url,
-                'active': current_path == settings_url
-            })
+        # Gestión de Usuarios y Grupos (Visible para todos por consistencia visual)
+        menu.append({
+            'name': 'Usuarios',
+            'icon': 'users', 
+            'url': users_url,
+            'active': current_path.startswith('/usuarios/')
+        })
+
+        try:
+            groups_url = reverse('groups:list')
+        except:
+            groups_url = '#'
+
+        menu.append({
+            'name': 'Grupos', 
+            'icon': 'users-cog', 
+            'url': groups_url, 
+            'active': current_path.startswith('/groups/')
+        })
+
+        menu.append({
+            'name': 'Auditoría',
+            'icon': 'clipboard-list',
+            'url': audit_url,
+            'active': current_path.startswith('/auditoria/')
+        })
+        
+        # Sección de Configuración
+        menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
+        menu.append({
+            'name': 'NAS Config',
+            'icon': 'cog',
+            'url': settings_url,
+            'active': current_path == settings_url
+        })
         
         return menu

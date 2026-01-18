@@ -13,6 +13,7 @@ ARQUITECTURA CLAVE:
 import requests
 from requests.exceptions import RequestException, Timeout, ConnectionError
 import logging
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,6 @@ class ConnectionService:
             
         if not self.config:
             # En modo offline, permitimos iniciar sin config para simulaciones
-            from django.conf import settings
             if not getattr(settings, 'NAS_OFFLINE_MODE', False):
                 raise ValueError("No hay configuración NAS activa. Configure el NAS primero.")
             logger.info("ConnectionService initialized in OFFLINE MODE (No active config)")
@@ -49,6 +49,15 @@ class ConnectionService:
         PASO 1: Descubrir rutas de APIs disponibles.
         Consulta /webapi/query.cgi para obtener la ubicación real de cada servicio.
         """
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            # En modo offline, no descubrimos nada, usamos rutas ficticias para evitar logs de error
+            self.api_paths = {
+                'SYNO.API.Auth': {'path': 'entry.cgi', 'maxVersion': 3},
+                'SYNO.Core.Group': {'path': 'entry.cgi', 'maxVersion': 1},
+                'SYNO.Core.Share': {'path': 'entry.cgi', 'maxVersion': 1}
+            }
+            return True
+
         try:
             url = f"{self.get_base_url()}/webapi/query.cgi"
             
@@ -91,7 +100,7 @@ class ConnectionService:
                 return False
                 
         except Exception as e:
-            logger.error(f"Error during API discovery: {str(e)}")
+            logger.warning(f"📡 NAS Inalcanzable durante discovery: {str(e)}")
             return False
 
     def _get_api_info(self, api_name):
@@ -160,7 +169,6 @@ class ConnectionService:
         3. Session = FileStation
         """
         # Chequeo Modo Offline
-        from django.conf import settings
         if getattr(settings, 'NAS_OFFLINE_MODE', False):
             logger.info("OFFLINE MODE: Simulating authentication success")
             fake_sid = 'OFFLINE_MODE_SID_12345'
@@ -222,11 +230,11 @@ class ConnectionService:
                 }
                 
         except Exception as e:
-            logger.exception("Error critico en autenticacion")
+            logger.warning(f"⚠️ Fallo de conexión o tiempo de espera agotado al autenticar: {str(e)}")
             return {
                 'success': False,
                 'error': str(e),
-                'message': f'Error de sistema: {str(e)}'
+                'message': f'Error de conexión: El NAS no responde en {self.get_base_url()}'
             }
 
     def request(self, api, method, version=1, params=None, sid=None):
@@ -241,7 +249,6 @@ class ConnectionService:
             params = {}
             
         # Chequeo Modo Offline
-        from django.conf import settings
         if getattr(settings, 'NAS_OFFLINE_MODE', False):
             logger.info(f"OFFLINE MODE: Simulating request to {api} / {method}")
             # Retornar estructuras vacías válidas para evitar crashes en el frontend

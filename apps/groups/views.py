@@ -1,57 +1,53 @@
 """
 Vistas para la app Groups.
 
-Incluye vistas para listar, eliminar y exportar grupos,
-así como APIs JSON para el wizard de creación.
+Refactorizado:
+- Eliminada dependencia de modelos locales (Group, SharedFolder, etc).
+- Implementado patrón Service para consumo de API NAS.
 """
-from django.views.generic import ListView, DeleteView
+from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import User
 from django.contrib import messages
 from django.urls import reverse_lazy, reverse
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q
+from django.utils.decorators import method_decorator
+from django.shortcuts import render, redirect
 import json
 import csv
-from .models import Group, SharedFolder, Volume, Application
 import logging
+
+from .services.group_service import GroupService
+from apps.core.services.resource_service import ResourceService
 
 logger = logging.getLogger(__name__)
 
-
-from django.shortcuts import redirect
-
-class GroupListView(LoginRequiredMixin, ListView):
+class GroupListView(LoginRequiredMixin, TemplateView):
     """
-    Vista para listar grupos con filtros y búsqueda.
-    Incluye el modal wizard para creación.
+    Vista para listar grupos.
+    Obtiene datos del NAS via GroupService.
     """
-    model = Group
     template_name = 'groups/group_list.html'
-    context_object_name = 'groups'
-    paginate_by = 10
-    
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Búsqueda
-        search = self.request.GET.get('search', '').strip()
-        if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) | 
-                Q(description__icontains=search)
-            )
-        
-        return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Menu items centralizados
-        from apps.core.services.menu_service import MenuService
-        context['menu_items'] = MenuService.get_menu_items(self.request)
+        # Servicio
+        service = GroupService()
+        all_groups = service.list_groups()
+        
+        # Búsqueda local en la lista devuelta
+        search = self.request.GET.get('search', '').strip().lower()
+        if search:
+            all_groups = [
+                g for g in all_groups 
+                if search in g.get('name', '').lower() or search in g.get('description', '').lower()
+            ]
+        
+        context['groups'] = all_groups
+        context['search_query'] = search
+        context['page_title'] = 'Administración de Grupos (NAS)'
         
         # Breadcrumbs
         context['breadcrumbs'] = [
@@ -59,198 +55,135 @@ class GroupListView(LoginRequiredMixin, ListView):
             {'name': 'Grupos'}
         ]
         
-        context['page_title'] = 'Administración de Grupos'
-        context['search_query'] = self.request.GET.get('search', '')
-        
         return context
 
+class GroupDeleteView(LoginRequiredMixin, View):
+    """
+    Vista para eliminar un grupo via POST.
+    """
+    def post(self, request, *args, **kwargs):
+        group_name = request.POST.get('name')
+        if not group_name:
+             messages.error(request, 'Nombre de grupo no especificado')
+             return redirect('groups:list')
 
-class GroupDeleteView(LoginRequiredMixin, DeleteView):
-    """
-    Vista para eliminar un grupo.
-    """
-    model = Group
-    success_url = reverse_lazy('groups:list')
-    template_name = 'groups/group_confirm_delete.html'
-    
-    def delete(self, request, *args, **kwargs):
-        group = self.get_object()
+        service = GroupService()
+        result = service.delete_group(group_name)
         
-        # Prevenir eliminación de grupos del sistema
-        if group.is_system:
-            messages.error(request, 'No se pueden eliminar grupos del sistema.')
-            return redirect('groups:list')
-        
-        messages.success(request, f'Grupo "{group.name}" eliminado correctamente.')
-        logger.info(f'Grupo eliminado: {group.name}')
-        return super().delete(request, *args, **kwargs)
-
-
-class GroupExportView(LoginRequiredMixin, ListView):
-    """
-    Vista para exportar grupos a CSV o JSON.
-    """
-    model = Group
-    
-    def get(self, request, *args, **kwargs):
-        format_type = request.GET.get('format', 'csv').lower()
-        groups = Group.objects.all()
-        
-        if format_type == 'json':
-            return self.export_json(groups)
+        if result['success']:
+            messages.success(request, f'Grupo "{group_name}" eliminado correctamente.')
         else:
-            return self.export_csv(groups)
-    
-    def export_csv(self, groups):
-        """Exporta grupos a CSV."""
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="grupos.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow(['ID', 'Nombre', 'Descripción', 'Miembros', 'Sistema', 'Creado'])
-        
-        for group in groups:
-            writer.writerow([
-                group.id,
-                group.name,
-                group.description,
-                group.get_member_count(),
-                'Sí' if group.is_system else 'No',
-                group.created_at.strftime('%Y-%m-%d %H:%M')
-            ])
-        
-        logger.info('Grupos exportados a CSV')
-        return response
-    
-    def export_json(self, groups):
-        """Exporta grupos a JSON."""
-        data = [group.export_to_dict() for group in groups]
-        
-        response = JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
-        response['Content-Disposition'] = 'attachment; filename="grupos.json"'
-        
-        logger.info('Grupos exportados a JSON')
-        return response
+            messages.error(request, f'Error al eliminar grupo: {result.get('message')}')
+            
+        return redirect('groups:list')
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CreateGroupWizardView(LoginRequiredMixin, View):
+    """
+    API endpoint para el wizard de creación.
+    """
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            service = GroupService()
+            result = service.create_group(data)
+            
+            if result['success']:
+                return JsonResponse({'success': True, 'message': result['message']})
+            else:
+                 return JsonResponse({'success': False, 'message': result['message']}, status=400)
+                 
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.exception("Create Group Error")
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+# === API Endpoints for Wizard Options (Proxy to Services) ===
 
 @require_http_methods(["GET"])
 def get_available_users(request):
-    """
-    API: Retorna lista de usuarios disponibles para paso 2 del wizard.
-    """
-    users = User.objects.all().values('id', 'username', 'email', 'first_name', 'last_name')
-    users_list = []
+    """API: Retorna usuarios via UserService"""
+    from apps.usuarios.services.user_service import UserService
     
-    for user in users:
-        # Asegurar codificación correcta si viene mal de la BD (aunque en Django+SQLite suele ser automágico)
-        first_name = user['first_name'] or ''
-        last_name = user['last_name'] or ''
-        full_name = f"{first_name} {last_name}".strip() or user['username']
+    try:
+        service = UserService()
+        users = service.list_users()
         
-        users_list.append({
-            'id': user['id'],
-            'username': user['username'],
-            'email': user['email'],
-            'full_name': full_name
-        })
-    
-    # ensure_ascii=False permite tildes reales en el JSON en lugar de unicodes escapados
-    return JsonResponse(users_list, safe=False, json_dumps_params={'ensure_ascii': False})
-
+        # Formato para el wizard
+        user_list = []
+        for u in users:
+            # list_users devuelve dicts en modo offline o realtime
+            full_name = u.get('description', '') or u.get('name')
+            if 'email' in u and u['email']:
+                 full_name += f" ({u['email']})"
+                 
+            user_list.append({
+                'id': u.get('id', u.get('name')), # ID o nombre como fallback
+                'username': u.get('name'),
+                'email': u.get('email', ''),
+                'full_name': u.get('name') # Simple name for now, description is separate
+            })
+            
+        return JsonResponse(user_list, safe=False)
+    except Exception as e:
+         logger.exception("Error getting users for group wizard")
+         return JsonResponse([], safe=False)
 
 @require_http_methods(["GET"])
 def get_shared_folders(request):
-    """
-    API: Retorna lista de carpetas compartidas para paso 3 del wizard.
-    """
-    folders = SharedFolder.objects.all().values('id', 'name', 'description', 'path')
-    return JsonResponse(list(folders), safe=False)
-
+    """API: Retorna shared folders"""
+    service = ResourceService()
+    return JsonResponse(service.get_shared_folders(), safe=False)
 
 @require_http_methods(["GET"])
 def get_volumes(request):
-    """
-    API: Retorna lista de volúmenes para paso 4 del wizard.
-    """
-    volumes = Volume.objects.all().values('id', 'name', 'total_space', 'available_space')
-    return JsonResponse(list(volumes), safe=False)
-
+    """API: Retorna volúmenes"""
+    service = ResourceService()
+    return JsonResponse(service.get_volumes(), safe=False)
 
 @require_http_methods(["GET"])
 def get_applications(request):
-    """
-    API: Retorna lista de aplicaciones para paso 5 del wizard.
-    """
-    apps = Application.objects.filter(is_active=True).values('id', 'name', 'description')
-    return JsonResponse(list(apps), safe=False)
+    """API: Retorna applications"""
+    service = ResourceService()
+    return JsonResponse(service.get_applications(), safe=False)
 
+@require_http_methods(["GET"])
+def get_group_detail(request, name):
+    """API: Retorna detalles de un grupo específico para edición"""
+    service = GroupService()
+    group = service.get_group(name)
+    if group:
+        return JsonResponse({'success': True, 'data': group})
+    return JsonResponse({'success': False, 'message': 'Grupo no encontrado'}, status=404)
 
-@require_http_methods(["POST"])
-@csrf_exempt  # TODO: Implementar CSRF token en el wizard
-def create_group_wizard(request):
+class GroupExportView(LoginRequiredMixin, View):
     """
-    API: Crea un grupo con todos los datos del wizard (paso 7).
-    
-    Espera un JSON con:
-    {
-        "name": "...",
-        "description": "...",
-        "members": [user_id1, user_id2, ...],
-        "folder_permissions": {"folder_id": "rw|ro|na", ...},
-        "quotas": {"volume_id": {"amount": 100, "unit": "GB"}, ...},
-        "app_permissions": {"app_name": "allow|deny", ...},
-        "speed_limits": {"service": {"upload": 100, "download": 200}, ...}
-    }
+    Vista para exportar grupos.
     """
-    try:
-        data = json.loads(request.body)
+    def get(self, request, *args, **kwargs):
+        format_type = request.GET.get('format', 'csv').lower()
+        service = GroupService()
+        groups = service.list_groups()
         
-        # Validar nombre obligatorio
-        name = data.get('name', '').strip()
-        if not name:
-            return JsonResponse({
-                'success': False,
-                'message': 'El nombre del grupo es obligatorio'
-            }, status=400)
-        
-        # Verificar que no exista el grupo
-        if Group.objects.filter(name=name).exists():
-            return JsonResponse({
-                'success': False,
-                'message': f'Ya existe un grupo con el nombre "{name}"'
-            }, status=400)
-        
-        # Crear el grupo
-        group = Group.objects.create(
-            name=name,
-            description=data.get('description', ''),
-            folder_permissions=data.get('folder_permissions', {}),
-            quotas=data.get('quotas', {}),
-            app_permissions=data.get('app_permissions', {}),
-            speed_limits=data.get('speed_limits', {})
-        )
-        
-        # Agregar miembros
-        member_ids = data.get('members', [])
-        if member_ids:
-            group.members.set(member_ids)
-        
-        logger.info(f'Grupo creado via wizard: {group.name} con {len(member_ids)} miembros')
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Grupo "{group.name}" creado exitosamente',
-            'group_id': group.id
-        })
-    
-    except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'message': 'JSON inválido'
-        }, status=400)
-    
-    except Exception as e:
-        logger.exception(f'Error al crear grupo: {str(e)}')
-        return JsonResponse({
-            'success': False,
-            'message': f'Error al crear grupo: {str(e)}'
-        }, status=500)
+        if format_type == 'json':
+            response = JsonResponse(groups, safe=False, json_dumps_params={'ensure_ascii': False})
+            response['Content-Disposition'] = 'attachment; filename="grupos.json"'
+            return response
+        else:
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="grupos.csv"'
+            
+            writer = csv.writer(response)
+            writer.writerow(['Nombre', 'Descripción', 'Miembros', 'Sistema'])
+            
+            for g in groups:
+                 writer.writerow([
+                     g.get('name'),
+                     g.get('description'),
+                     len(g.get('members', [])),
+                     'Sí' if g.get('is_system') else 'No'
+                 ])
+            return response

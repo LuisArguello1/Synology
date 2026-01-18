@@ -29,11 +29,72 @@ let availableApps = [];
 // FUNCIONES DE NAVEGACIÓN DEL WIZARD
 // ============================================
 
-function openWizard() {
+let wizardMode = 'create'; // 'create' or 'edit'
+let selectedGroupName = null;
+
+async function openWizard(mode = 'create', groupName = null) {
+    wizardMode = mode;
+    selectedGroupName = groupName;
     currentStep = 1;
     resetWizardData();
+
+    if (mode === 'edit') {
+        document.getElementById('wizardTitle').textContent = 'Editar Grupo: ' + groupName;
+        await loadGroupData(groupName);
+    } else {
+        document.getElementById('wizardTitle').textContent = 'Crear Nuevo Grupo';
+    }
+
     document.getElementById('wizardModal').classList.remove('hidden');
     renderStep(1);
+}
+
+async function loadGroupData(groupName) {
+    try {
+        const response = await fetch(`/groups/api/detail/${groupName}/`);
+        const result = await response.json();
+
+        if (result.success) {
+            const data = result.data;
+            wizardData.name = data.name;
+            wizardData.description = data.description || data.desc || '';
+
+            // Miembros: asegurar que es una lista de IDs/Nombres
+            if (data.members) {
+                wizardData.members = Array.isArray(data.members) ? data.members : [];
+            }
+
+            // Permisos de carpetas (puede venir en data.perm)
+            if (data.perm) {
+                // Synology suele devolver perms como array de objetos
+                // Pero nuestro wizardData lo usa como dict {id: perm}
+                // Si es simulación, ya viene como folder_permissions
+                if (data.folder_permissions) {
+                    wizardData.folder_permissions = data.folder_permissions;
+                }
+            }
+
+            // Quotas (puede venir en data.quota)
+            if (data.quotas) {
+                wizardData.quotas = data.quotas;
+            }
+
+            // App permissions
+            if (data.app_permissions) {
+                wizardData.app_permissions = data.app_permissions;
+            }
+
+            // Speed limits
+            if (data.speed_limits) {
+                wizardData.speed_limits = data.speed_limits;
+            }
+        } else {
+            showMessage(result.message || 'Error al cargar los datos del grupo', 'error');
+        }
+    } catch (error) {
+        console.error('Error cargando datos del grupo:', error);
+        showMessage('Error de conexión al cargar datos del grupo', 'error');
+    }
 }
 
 function closeWizard() {
@@ -336,16 +397,18 @@ function validateCurrentStep() {
         case 1:
             const name = document.getElementById('groupName').value.trim();
             if (!name) {
-                showError('El nombre del grupo es obligatorio');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Campo requerido',
+                    text: 'El nombre del grupo es obligatorio.',
+                    confirmButtonColor: '#4f46e5'
+                });
                 return false;
             }
             return true;
 
         case 2:
-            if (wizardData.members.length === 0) {
-                showError('Debes seleccionar al menos un miembro');
-                return false;
-            }
+            // Es válido crear un grupo sin miembros 
             return true;
 
         default:
@@ -380,7 +443,7 @@ async function loadUsers() {
 
 async function loadFolders() {
     try {
-        const response = await fetch('/groups/api/folders/');
+        const response = await fetch('/groups/api/shares/');
         availableFolders = await response.json();
     } catch (error) {
         console.error('Error cargando carpetas:', error);
@@ -400,7 +463,7 @@ async function loadVolumes() {
 
 async function loadApplications() {
     try {
-        const response = await fetch('/groups/api/applications/');
+        const response = await fetch('/groups/api/apps/');
         availableApps = await response.json();
     } catch (error) {
         console.error('Error cargando aplicaciones:', error);
@@ -427,7 +490,7 @@ function renderUsersTable(users) {
                 <input type="checkbox" 
                        value="${user.id}" 
                        ${wizardData.members.includes(user.id) ? 'checked' : ''}
-                       onchange="toggleMember(${user.id}, this.checked)"
+                       onchange="toggleMember('${user.id}', this.checked)"
                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
             </td>
         </tr>
@@ -469,19 +532,19 @@ function renderFoldersTable() {
                 <td class="px-3 py-2 text-center">
                     <input type="radio" name="folder_${folder.id}" value="na" 
                            ${currentPerm === 'na' ? 'checked' : ''}
-                           onchange="setFolderPermission(${folder.id}, 'na')"
+                           onchange="setFolderPermission('${folder.id}', 'na')"
                            class="text-gray-600 focus:ring-gray-500">
                 </td>
                 <td class="px-3 py-2 text-center">
                     <input type="radio" name="folder_${folder.id}" value="rw" 
                            ${currentPerm === 'rw' ? 'checked' : ''}
-                           onchange="setFolderPermission(${folder.id}, 'rw')"
+                           onchange="setFolderPermission('${folder.id}', 'rw')"
                            class="text-green-600 focus:ring-green-500">
                 </td>
                 <td class="px-3 py-2 text-center">
                     <input type="radio" name="folder_${folder.id}" value="ro" 
                            ${currentPerm === 'ro' ? 'checked' : ''}
-                           onchange="setFolderPermission(${folder.id}, 'ro')"
+                           onchange="setFolderPermission('${folder.id}', 'ro')"
                            class="text-blue-600 focus:ring-blue-500">
                 </td>
             </tr>
@@ -520,7 +583,7 @@ function renderVolumesList() {
         <div class="border rounded-md mb-3 overflow-hidden transition-all duration-200 ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500 bg-white shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'}">
             
             <!-- HEADER DEL ACORDEÓN -->
-            <div class="flex items-center justify-between p-3 cursor-pointer select-none" onclick="toggleVolumeAccordion(${volume.id})">
+            <div class="flex items-center justify-between p-3 cursor-pointer select-none" onclick="toggleVolumeAccordion('${volume.id}')">
                 <div class="flex items-center">
                     <div class="bg-indigo-100 p-2 rounded-full mr-3 text-indigo-600">
                         <i class="fas fa-hdd"></i>
@@ -550,7 +613,7 @@ function renderVolumesList() {
                         <input type="checkbox" id="noLimit_${volume.id}" 
                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
                                ${isUnlimited ? 'checked' : ''}
-                               onchange="updateVolumeQuota(${volume.id})">
+                               onchange="updateVolumeQuota('${volume.id}')">
                         <label for="noLimit_${volume.id}" class="ml-2 block text-sm text-gray-700 cursor-pointer">
                             Sin límite de cuota
                         </label>
@@ -564,7 +627,7 @@ function renderVolumesList() {
                                min="0"
                                value="${(!amount && amount !== 0) ? '' : amount}"
                                ${isUnlimited ? 'disabled' : ''}
-                               oninput="updateVolumeQuota(${volume.id})">
+                               oninput="updateVolumeQuota('${volume.id}')">
                         <select id="unit_${volume.id}" 
                                 class="focus:ring-indigo-500 focus:border-indigo-500 inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-r-md disabled:bg-gray-100"
                                 ${isUnlimited ? 'disabled' : ''}
@@ -685,17 +748,24 @@ async function submitWizard() {
             // Cerrar modal
             document.getElementById('wizardModal').classList.add('hidden');
 
-            // Mostrar mensaje de éxito y recargar página
-            alert('✅ ' + result.message);
-            window.location.reload();
+            // Mensaje de éxito
+            Swal.fire({
+                icon: 'success',
+                title: '¡Éxito!',
+                text: result.message || 'Operación completada correctamente.',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.reload();
+            });
         } else {
-            showError(result.message || 'Error al crear el grupo');
+            showMessage(result.message || 'Error al crear el grupo', 'error');
             btnFinish.disabled = false;
             btnFinish.innerHTML = '<i class="fas fa-check mr-1.5"></i>Finalizar';
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('Error de conexión al crear el grupo');
+        showMessage('Error de conexión al crear el grupo', 'error');
         btnFinish.disabled = false;
         btnFinish.innerHTML = '<i class="fas fa-check mr-1.5"></i>Finalizar';
     }

@@ -1,5 +1,6 @@
 import logging
 import json
+from django.conf import settings
 from apps.settings.services.connection_service import ConnectionService
 from apps.settings.models import NASConfig
 
@@ -15,8 +16,10 @@ class UserService:
     def __init__(self):
         self.config = NASConfig.get_active_config()
         self.connection = ConnectionService(self.config)
-        # Autenticar automáticamente para tener SID disponible en todas las llamadas
-        self.connection.authenticate()
+        # En modo offline, no necesitamos autenticar
+        if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+            # Autenticar automáticamente para tener SID disponible en todas las llamadas
+            self.connection.authenticate()
         
     def list_users(self, limit=50, offset=0):
         """
@@ -91,35 +94,41 @@ class UserService:
     def get_wizard_options(self):
         """
         Obtiene TODAS las dependencias para poblar los selects del Wizard:
-        - Grupos existentes
-        - Carpetas compartidas (para permisos)
-        - Volumenes (para cuotas)
-        - Apps (para privilegios)
+        - Grupos existentes (API/Simulado)
+        - Carpetas compartidas (API/Simulado)
+        - Volumenes (API/Simulado)
+        - Apps (API/Simulado)
         """
+        from apps.groups.services.group_service import GroupService
+        from apps.core.services.resource_service import ResourceService
+        
         options = {
             'groups': [],
             'shares': [],
             'apps': [],
-            'volumes': ['/volume1'] # Fallback
+            'volumes': []
         }
         
         try:
-            # 1. Grupos
-            g_resp = self.connection.request('SYNO.Core.Group', 'list', version=1)
-            if g_resp.get('success'):
-                options['groups'] = g_resp['data']['groups']
+            group_service = GroupService()
+            resource_service = ResourceService()
 
-            # 2. Shares (Carpetas)
-            s_resp = self.connection.request('SYNO.Core.Share', 'list', version=1)
-            if s_resp.get('success'):
-                options['shares'] = s_resp['data']['shares']
+            # 1. Grupos (Service)
+            groups = group_service.list_groups()
+            options['groups'] = [{'name': g.get('name'), 'description': g.get('description', '')} for g in groups]
 
-            # 3. Apps (Applications privs) 
-            a_resp = self.connection.request('SYNO.Core.AppPriv', 'list', version=1)
-            if a_resp.get('success'):
-                options['apps'] = a_resp['data']['app_privs']
+            # 2. Shares (Service)
+            shares = resource_service.get_shared_folders()
+            options['shares'] = shares # Ya viene formateado del servicio
+
+            # 3. Apps (Service)
+            apps = resource_service.get_applications()
+            options['apps'] = [{'name': a.get('name'), 'desc': a.get('description')} for a in apps]
             
-            # TODO: SYNO.Core.Storage.Volume para volúmenes reales
+            # 4. Volúmenes (Service)
+            options['volumes'] = resource_service.get_volumes()
+            if not options['volumes']:
+                options['volumes'] = ['/volume1'] # Fallback
 
         except Exception as e:
             logger.error(f"Error fetching wizard options: {e}")
