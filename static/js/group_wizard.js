@@ -51,7 +51,7 @@ async function openWizard(mode = 'create', groupName = null) {
 
 async function loadGroupData(groupName) {
     try {
-        const response = await fetch(`/groups/api/detail/${groupName}/`);
+        const response = await fetch(`/grupos/api/detail/${groupName}/`);
         const result = await response.json();
 
         if (result.success) {
@@ -433,7 +433,7 @@ function hideError() {
 
 async function loadUsers() {
     try {
-        const response = await fetch('/groups/api/users/');
+        const response = await fetch('/grupos/api/users/');
         availableUsers = await response.json();
     } catch (error) {
         console.error('Error cargando usuarios:', error);
@@ -443,7 +443,7 @@ async function loadUsers() {
 
 async function loadFolders() {
     try {
-        const response = await fetch('/groups/api/shares/');
+        const response = await fetch('/grupos/api/shares/');
         availableFolders = await response.json();
     } catch (error) {
         console.error('Error cargando carpetas:', error);
@@ -453,7 +453,7 @@ async function loadFolders() {
 
 async function loadVolumes() {
     try {
-        const response = await fetch('/groups/api/volumes/');
+        const response = await fetch('/grupos/api/volumes/');
         availableVolumes = await response.json();
     } catch (error) {
         console.error('Error cargando volúmenes:', error);
@@ -463,7 +463,7 @@ async function loadVolumes() {
 
 async function loadApplications() {
     try {
-        const response = await fetch('/groups/api/apps/');
+        const response = await fetch('/grupos/api/apps/');
         availableApps = await response.json();
     } catch (error) {
         console.error('Error cargando aplicaciones:', error);
@@ -734,7 +734,7 @@ async function submitWizard() {
     btnFinish.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Creando...';
 
     try {
-        const response = await fetch('/groups/api/create/', {
+        const response = await fetch('/grupos/api/create/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

@@ -98,6 +98,19 @@ class MenuService:
                 'active': current_path.startswith('/carpeta/')
             })
             
+            # Servicios de Archivos
+            try:
+                file_services_url = reverse('archivos_servicios:index')
+            except:
+                file_services_url = '#'
+                
+            menu.append({
+                'name': 'Servicios de Archivos',
+                'icon': 'network-wired',
+                'url': file_services_url,
+                'active': current_path.startswith('/servicios-archivos/')
+            })
+            
             # Sección de Configuración
             menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
             menu.append({

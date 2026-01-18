@@ -27,6 +27,7 @@ urlpatterns = [
     path('grupos/', include('apps.groups.urls')),      # Groups app
     path('carpeta/', include('apps.carpeta.urls')),    # Carpeta Compartida App
     path('archivos/', include('apps.archivos.urls')),  # Explorador de Archivos
+    path('servicios-archivos/', include('apps.archivos_servicios.urls')),  # Servicios de Archivos (SMB, FTP, etc.)
     path('auditoria/', include('apps.auditoria.urls')), # Auditoría App
     path('', include('apps.core.urls')),  # Core app (dashboard) at ROOT
 ]

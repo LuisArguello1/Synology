@@ -1,0 +1,185 @@
+<!-- PESTAÑA AVANZADO -->
+<div id="tab-advanced" class="tab-content">
+    <form id="form-advanced">
+
+        <!-- Clonación rápida de archivos -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">Clonación rápida de archivos</h4>
+                    <p class="text-xs text-gray-600 mt-1">Optimización de copia de archivos en sistemas de archivos
+                        Btrfs</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <p class="text-sm text-gray-700 mb-3">
+                    La clonación rápida permite copiar archivos mediante bloques de datos físicos compartidos,
+                    reduciendo el uso de espacio y mejorando la velocidad.
+                </p>
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="adv_fast_clone" name="enable_fast_clone" class="custom-checkbox">
+                    <span>Habilitar la clonación rápida de archivos</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Bonjour -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">Bonjour</h4>
+                    <p class="text-xs text-gray-600 mt-1">Descubrimiento automático de servicios en redes locales</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <div class="space-y-3 mb-4">
+                    <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="adv_bonjour_enable" name="enable_bonjour" class="custom-checkbox"
+                            checked>
+                        <span>Activar detección del servicio Bonjour para localizar RackStation</span>
+                    </label>
+
+                    <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="adv_bonjour_printer" name="enable_bonjour_printer"
+                            class="custom-checkbox">
+                        <span>Habilitar transmisión de impresora Bonjour</span>
+                    </label>
+
+                    <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="adv_bonjour_tm_smb" name="enable_bonjour_timemachine_smb"
+                            class="custom-checkbox">
+                        <span>Habilitar emisión de Bonjour Time Machine a través de SMB</span>
+                    </label>
+
+                    <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="adv_bonjour_tm_afp" name="enable_bonjour_timemachine_afp"
+                            class="custom-checkbox">
+                        <span>Habilitar emisión de Bonjour Time Machine a través de AFP</span>
+                    </label>
+                </div>
+
+                <button type="button" class="action-button secondary" onclick="configureTimeMachineFolders()">
+                    <i class="fab fa-apple mr-2"></i>Configurar carpetas de Time Machine
+                </button>
+            </div>
+        </div>
+
+        <!-- SSDP -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">SSDP</h4>
+                    <p class="text-xs text-gray-600 mt-1">Protocolo simple de descubrimiento de servicios</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <p class="text-sm text-gray-700 mb-3">
+                    SSDP permite que los dispositivos Windows descubran automáticamente el NAS en la red.
+                </p>
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="adv_ssdp_enable" name="enable_ssdp" class="custom-checkbox" checked>
+                    <span>Activar la detección de redes de Windows para permitir el acceso a través de exploradores
+                        web</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- TFTP -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">TFTP</h4>
+                    <p class="text-xs text-gray-600 mt-1">Trivial File Transfer Protocol</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <p class="text-sm text-gray-700 mb-4">
+                    TFTP es un protocolo simple de transferencia de archivos, comúnmente utilizado para
+                    arranque de red y transferencia de configuraciones de dispositivos.
+                </p>
+
+                <label class="flex items-center text-sm text-gray-700 mb-4 cursor-pointer">
+                    <input type="checkbox" id="adv_tftp_enable" name="enable_tftp" class="custom-checkbox">
+                    <span>Habilitar servicio TFTP</span>
+                </label>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Carpeta root TFTP:
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="text" id="adv_tftp_root" name="tftp_root" readonly
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                            placeholder="Seleccione una carpeta...">
+                        <button type="button" class="action-button secondary" onclick="selectTFTPFolder()">
+                            <i class="fas fa-folder-open mr-2"></i>Seleccionar
+                        </button>
+                    </div>
+                </div>
+
+                <a href="#" class="link-text text-sm" onclick="openAdvancedSettings('tftp'); return false;">
+                    <i class="fas fa-sliders-h mr-1"></i>Configuración avanzada
+                </a>
+            </div>
+        </div>
+
+        <!-- Sincronización de carpetas compartidas -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">Sincronización de carpetas compartidas</h4>
+                    <p class="text-xs text-gray-600 mt-1">Configuración de sincronización rsync</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Estado del servidor:
+                    </label>
+                    <select class="w-64 px-3 py-2 border border-gray-300 rounded-md">
+                        <option selected>Cliente rsync</option>
+                        <option>Servidor rsync</option>
+                        <option>Ambos</option>
+                    </select>
+                </div>
+
+                <button type="button" class="action-button secondary mb-3" onclick="openTaskList()">
+                    <i class="fas fa-list mr-2"></i>Lista de tareas
+                </button>
+
+                <div class="text-xs text-gray-600">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Para más información sobre rsync, consulte la
+                    <a href="#" class="link-text">documentación de rsync</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Omitir comprobación de recorrido -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                <div>
+                    <h4 class="font-medium text-sm text-gray-800">Omitir comprobación de recorrido</h4>
+                    <p class="text-xs text-gray-600 mt-1">Optimización de acceso a directorios</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform"></i>
+            </div>
+            <div class="collapsible-body">
+                <p class="text-sm text-gray-700 mb-3">
+                    Al habilitar esta opción, el sistema omitirá la comprobación de recorrido de directorios,
+                    lo que puede mejorar el rendimiento en estructuras de carpetas complejas.
+                </p>
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="adv_skip_traversal" name="enable_traversal_check"
+                        class="custom-checkbox">
+                    <span>Habilitar omisión de comprobación de recorrido</span>
+                </label>
+            </div>
+        </div>
+    </form>
+</div>
