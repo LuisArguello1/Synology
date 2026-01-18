@@ -1,0 +1,64 @@
+<div x-show="currentStep === 1" class="space-y-6">
+    <!-- Form Fields -->
+    <div class="space-y-4">
+        <!-- Nombre -->
+        <div class="flex items-center">
+            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Nombre *:</label>
+            <input type="text" x-model="formData.info.name"
+                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                :class="{'border-red-500': !formData.info.name && submitting}">
+        </div>
+
+        <!-- Descripción -->
+        <div class="flex items-center">
+            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Descripción:</label>
+            <textarea x-model="formData.info.description" rows="2"
+                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"></textarea>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="flex items-center">
+            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Ubicación:</label>
+            <select x-model="formData.info.volume"
+                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                <template x-for="vol in options.volumes" :key="vol">
+                    <option :value="vol" x-text="vol.replace('/volume', 'Volumen ') + ' (btrfs)'"></option>
+                </template>
+            </select>
+        </div>
+    </div>
+
+    <!-- Checkboxes -->
+    <div class="space-y-3 pt-2">
+        <label class="flex items-start">
+            <input type="checkbox" x-model="formData.info.hide_network" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <span class="ml-2 text-sm text-gray-700">Ocultar esta carpeta compartida en "Mis sitios de red"</span>
+        </label>
+        
+        <label class="flex items-start">
+            <input type="checkbox" x-model="formData.info.hide_subfolders" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <span class="ml-2 text-sm text-gray-700 flex items-center">
+                Ocultar subcarpetas y archivos de usuarios sin permisos
+                <i class="fas fa-info-circle text-blue-400 ml-1.5" title="Info"></i>
+            </span>
+        </label>
+
+        <div class="space-y-2">
+            <label class="flex items-start">
+                <input type="checkbox" x-model="formData.info.recyclebin" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="ml-2 text-sm text-gray-700">Habilitar papelera de reciclaje</span>
+            </label>
+            
+            <div class="ml-6" x-show="formData.info.recyclebin">
+                 <label class="flex items-start">
+                    <input type="checkbox" x-model="formData.info.admin_only" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">Acceso restringido únicamente a administradores</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <div class="text-xs text-gray-500 pt-4">
+        * Este campo es obligatorio.
+    </div>
+</div>

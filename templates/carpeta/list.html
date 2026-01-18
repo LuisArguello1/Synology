@@ -1,0 +1,130 @@
+{% extends 'layouts/base.html' %}
+
+{% block content %}
+<div class="h-full flex flex-col" x-data="{ 
+    selectedShare: null,
+    wizardOpen: false,
+    mode: 'create',
+    deleteModalOpen: false,
+    shareToDelete: null
+}">
+    <!-- Toolbar -->
+    <div class="bg-gray-100 border-b border-gray-300 px-4 py-2 flex items-center justify-between shrink-0 h-14">
+        <div class="flex space-x-2">
+            <!-- Crear -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" class="btn-toolbar flex items-center">
+                    <i class="fas fa-plus mr-2 text-blue-600"></i>
+                    <span>Crear</span>
+                    <i class="fas fa-caret-down ml-2 text-xs"></i>
+                </button>
+                <div x-show="open" @click.away="open = false" 
+                    class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50 text-sm">
+                    <a href="#" @click.prevent="open=false; mode='create'; wizardOpen=true" class="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600">
+                        Crear carpeta compartida
+                    </a>
+                </div>
+            </div>
+
+            <!-- Editar -->
+            <button class="btn-toolbar" :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}"
+                 @click="if(selectedShare) { mode='edit'; wizardOpen=true; }">
+                <span>Editar</span>
+            </button>
+
+            <!-- Eliminar -->
+            <button @click="if(selectedShare) { shareToDelete=selectedShare; deleteModalOpen=true; }" 
+                class="btn-toolbar" :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
+                <span>Eliminar</span>
+            </button>
+
+            <!-- Cifrado -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="if(selectedShare) open = !open" class="btn-toolbar flex items-center" 
+                    :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
+                    <span>Cifrado</span>
+                    <i class="fas fa-caret-down ml-2 text-xs"></i>
+                </button>
+            </div>
+            
+            <!-- Acción -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="if(selectedShare) open = !open" class="btn-toolbar flex items-center" 
+                    :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
+                    <span>Acción</span>
+                    <i class="fas fa-caret-down ml-2 text-xs"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter/Search -->
+        <div class="flex items-center">
+             <div class="relative">
+                <input type="text" placeholder="Filtrar" 
+                    class="w-64 pl-8 pr-4 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                <i class="fas fa-filter absolute left-2.5 top-2 text-gray-400 text-xs"></i>
+             </div>
+             <button class="ml-2 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 border border-transparent hover:border-gray-300 rounded">
+                 <i class="fas fa-sort-amount-down"></i>
+             </button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="flex-1 overflow-auto bg-white">
+        <table class="w-full table-fixed divide-y divide-gray-200">
+            <tbody class="divide-y divide-gray-100">
+                {% for share in shares %}
+                <tr class="hover:bg-blue-50 cursor-pointer transition-colors"
+                    :class="{'bg-blue-100/50': selectedShare === '{{ share.name }}'}"
+                    @click="selectedShare = '{{ share.name }}'">
+                    
+                    <td class="px-6 py-3 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <!-- Icon -->
+                            <div class="flex-shrink-0 h-10 w-10 flex items-center justify-center">
+                                <i class="fas fa-folder text-yellow-500 text-3xl shadow-sm"></i>
+                                {% if share.encryption == 1 %}
+                                <i class="fas fa-lock text-[10px] text-gray-600 absolute ml-3 mt-2 bg-white rounded-full p-[1px]"></i>
+                                {% endif %}
+                            </div>
+                            <!-- Details -->
+                            <div class="ml-4">
+                                <div class="text-sm font-bold text-gray-900">{{ share.name }}</div>
+                                <div class="text-xs text-gray-500">
+                                    {{ share.vol_path|default:"/volume1"|cut:"/volume"|add:"Volumen " }} 
+                                    {% if share.desc %} - {{ share.desc }}{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td class="px-6 py-10 text-center text-gray-500 text-sm">
+                        No hay carpetas compartidas.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Footer / Pagination Status -->
+    <div class="bg-white border-t border-gray-200 px-4 py-2 flex justify-end items-center text-xs text-gray-600">
+        <span>{{ shares.paginator.count }} elementos</span>
+        <a href="?page={{ shares.number }}" class="ml-3 hover:text-gray-900"><i class="fas fa-sync-alt"></i></a>
+    </div>
+
+    <!-- Modals -->
+    {% include 'carpeta/modals/share_wizard.html' %}
+    {% include 'carpeta/modals/confirm_delete.html' %}
+    
+</div>
+
+<style>
+    .btn-toolbar {
+        @apply px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none transition-colors;
+    }
+</style>
+{% endblock %}
