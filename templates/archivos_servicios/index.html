@@ -1,0 +1,226 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %}Servicios de Archivos{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos personalizados para el panel de servicios estilo Synology DSM */
+    .service-panel {
+        background: linear-gradient(135deg, #f5f5dc 0%, #ffffff 100%);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    .tab-button {
+        padding: 12px 24px;
+        background: #e8e8e8;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        color: #666;
+        transition: all 0.3s ease;
+    }
+
+    .tab-button:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+
+    .tab-button.active {
+        background: #ffffff;
+        color: #00bcd4;
+        border-bottom-color: #00bcd4;
+    }
+
+    .tab-content {
+        display: none;
+        padding: 24px;
+        background: #ffffff;
+    }
+
+    .tab-content.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .observation-box {
+        background: #e8f5f7;
+        border-left: 4px solid #008080;
+        padding: 16px;
+        margin-top: 16px;
+        border-radius: 4px;
+    }
+
+    .observation-box ul {
+        margin-left: 20px;
+        margin-top: 8px;
+    }
+
+    .observation-box li {
+        margin-bottom: 6px;
+        color: #006666;
+    }
+
+    .collapsible-section {
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+
+    .collapsible-header {
+        padding: 12px 16px;
+        background: #f8f8f8;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.2s;
+    }
+
+    .collapsible-header:hover {
+        background: #f0f0f0;
+    }
+
+    .collapsible-body {
+        padding: 16px;
+        display: none;
+        background: #ffffff;
+    }
+
+    .collapsible-body.open {
+        display: block;
+    }
+
+    .port-input {
+        width: 100px;
+        padding: 6px 10px;
+        border: 1px solid #cccccc;
+        border-radius: 4px;
+    }
+
+    .action-button {
+        padding: 8px 20px;
+        border-radius: 4px;
+        border: none;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-button.primary {
+        background: #00bcd4;
+        color: white;
+    }
+
+    .action-button.primary:hover {
+        background: #00a3bb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 188, 212, 0.3);
+    }
+
+    .action-button.secondary {
+        background: #d3d3d3;
+        color: #666;
+    }
+
+    .action-button.secondary:hover {
+        background: #c0c0c0;
+    }
+
+    .custom-checkbox {
+        width: 18px;
+        height: 18px;
+        margin-right: 8px;
+        cursor: pointer;
+    }
+
+    .link-text {
+        color: #0073e6;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .link-text:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-network-wired mr-3 text-indigo-600"></i>
+                Servicios de Archivos
+            </h1>
+            <p class="text-gray-600 mt-1">Administra los servicios de red y protocolos de archivos del NAS</p>
+        </div>
+    </div>
+
+    <!-- Panel Principal -->
+    <div class="service-panel">
+        <!-- Barra de Pestañas -->
+        <div class="flex border-b border-gray-200">
+            <button class="tab-button active" onclick="switchTab('smb')">
+                <i class="fab fa-windows mr-2"></i>SMB
+            </button>
+            <button class="tab-button" onclick="switchTab('afp')">
+                <i class="fab fa-apple mr-2"></i>AFP
+            </button>
+            <button class="tab-button" onclick="switchTab('nfs')">
+                <i class="fab fa-linux mr-2"></i>NFS
+            </button>
+            <button class="tab-button" onclick="switchTab('ftp')">
+                <i class="fas fa-file-export mr-2"></i>FTP
+            </button>
+            <button class="tab-button" onclick="switchTab('rsync')">
+                <i class="fas fa-sync mr-2"></i>rsync
+            </button>
+            <button class="tab-button" onclick="switchTab('advanced')">
+                <i class="fas fa-cog mr-2"></i>Avanzado
+            </button>
+        </div>
+
+        <!-- Contenido de Pestañas -->
+        <div class="tab-contents">
+            {% include 'archivos_servicios/tabs/smb.html' %}
+            {% include 'archivos_servicios/tabs/afp.html' %}
+            {% include 'archivos_servicios/tabs/nfs.html' %}
+            {% include 'archivos_servicios/tabs/ftp.html' %}
+            {% include 'archivos_servicios/tabs/rsync.html' %}
+            {% include 'archivos_servicios/tabs/advanced.html' %}
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-200">
+            <button type="button" class="action-button secondary" onclick="resetForm()">
+                <i class="fas fa-undo mr-2"></i>Restablecer
+            </button>
+            <button type="button" class="action-button primary" onclick="saveAllConfigs()">
+                <i class="fas fa-check mr-2"></i>Aplicar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Script de gestión de pestañas y formularios -->
+<script src="{% static 'js/file_services.js' %}"></script>
+{% endblock %}

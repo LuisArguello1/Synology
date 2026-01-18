@@ -1,0 +1,105 @@
+<!-- PESTAÑA RSYNC -->
+<div id="tab-rsync" class="tab-content">
+    <form id="form-rsync">
+        <!-- Descripción del servicio -->
+        <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+            <p class="text-sm text-gray-700">
+                <i class="fas fa-info-circle mr-2 text-blue-600"></i>
+                <strong>rsync</strong> es un protocolo de transferencia de datos que puede utilizarse
+                para realizar copias de seguridad remotas de forma incremental y eficiente.
+            </p>
+        </div>
+
+        <!-- Habilitar Servicio rsync -->
+        <div class="mb-6">
+            <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+                <input type="checkbox" id="rsync_enable" name="enable" class="custom-checkbox" checked>
+                <span>Habilitar servicio rsync</span>
+            </label>
+        </div>
+
+        <!-- Puerto SSH -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Puerto de cifrado SSH:
+            </label>
+            <input type="number" id="rsync_ssh_port" name="ssh_port" value="22" class="port-input">
+            <p class="text-xs text-gray-600 mt-2">
+                rsync utilizará este puerto para transferencias cifradas
+            </p>
+        </div>
+
+        <!-- Cuenta rsync -->
+        <div class="mb-6">
+            <label class="flex items-center text-sm text-gray-700 mb-3 cursor-pointer">
+                <input type="checkbox" id="rsync_enable_account" name="enable_rsync_account" class="custom-checkbox">
+                <span>Habilitar cuenta rsync</span>
+            </label>
+
+            <div class="ml-6 p-3 bg-gray-50 rounded border border-gray-200">
+                <p class="text-xs text-gray-600 mb-3">
+                    Las cuentas rsync permiten que usuarios externos (sin acceso DSM) puedan realizar
+                    copias de seguridad en el NAS usando el protocolo rsync.
+                </p>
+                <button type="button" class="action-button secondary" onclick="editRsyncAccount()">
+                    <i class="fas fa-user-edit mr-2"></i>Editar cuenta rsync
+                </button>
+            </div>
+        </div>
+
+        <!-- Límites de velocidad -->
+        <div class="mb-6">
+            <h4 class="text-sm font-medium text-gray-700 mb-3">Límites de velocidad:</h4>
+
+            <p class="text-xs text-gray-600 mb-4">
+                Configure límites de velocidad para el tráfico de rsync. Esto ayuda a evitar
+                la saturación del ancho de banda durante las transferencias.
+            </p>
+
+            <div class="space-y-2 mb-4">
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="radio" name="rsync_speed_limit_mode" value="none" class="mr-2" checked>
+                    <span>Sin límite de velocidad</span>
+                </label>
+
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="radio" name="rsync_speed_limit_mode" value="enabled" class="mr-2">
+                    <span>Habilitar límite de velocidad</span>
+                </label>
+
+                <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input type="radio" name="rsync_speed_limit_mode" value="scheduled" class="mr-2">
+                    <span>Habilitar el límite de velocidad de acuerdo con un programa</span>
+                </label>
+            </div>
+
+            <button type="button" class="action-button secondary" onclick="configureSpeedLimits('rsync')" disabled
+                id="rsync_speed_button">
+                <i class="fas fa-tachometer-alt mr-2"></i>Ajustes del límite de velocidad
+            </button>
+        </div>
+
+        <!-- Observación -->
+        <div class="observation-box">
+            <h4 class="font-semibold text-sm text-gray-800 mb-2">
+                <i class="fas fa-info-circle mr-2"></i>Observación
+            </h4>
+            <ul class="text-sm list-disc">
+                <li>Asegúrese de que el puerto SSH esté abierto en el firewall</li>
+                <li>Para copias de seguridad, configure las tareas de rsync en el panel de respaldo</li>
+                <li>Los límites de velocidad ayudan a mantener el rendimiento del NAS durante transferencias grandes
+                </li>
+            </ul>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Habilitar/deshabilitar botón de límites según selección
+    document.querySelectorAll('input[name="rsync_speed_limit_mode"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const button = document.getElementById('rsync_speed_button');
+            button.disabled = this.value === 'none';
+        });
+    });
+</script>

@@ -61,7 +61,8 @@ LOCAL_APPS = [
     'apps.groups',    
     'apps.auditoria',
     'apps.carpeta',
-    'apps.archivos'
+    'apps.archivos',
+    'apps.archivos_servicios'  # Servicios de archivos (SMB, AFP, NFS, FTP, rsync)
 ]
 
 # Apps solo para DEBUG, y no para produccion
