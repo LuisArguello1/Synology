@@ -1,55 +1,74 @@
 <div x-show="currentStep === 6" class="space-y-4">
-    <h2 class="text-lg font-semibold text-gray-800">Límites de velocidad</h2>
-    <p class="text-xs text-gray-500">Establezca límites de ancho de banda para la transferencia de archivos de este usuario.</p>
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800">Establecer límite de velocidad de usuario</h2>
+    </div>
     
-    <div class="bg-gray-50 border border-gray-200 rounded-sm p-6 space-y-6">
-        
-        <!-- Upload -->
-        <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Subida (Upload)</label>
-            <div class="flex items-center space-x-2" x-data="{ unlimited: true }">
-                <div class="flex-1 flex shadow-sm rounded-sm">
-                     <span class="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-100 text-gray-500 text-xs rounded-l-sm">
-                        <i class="fas fa-arrow-up"></i>
-                    </span>
-                    <input type="number" x-model="formData.speed.upload_value" :disabled="unlimited" 
-                           class="flex-1 w-full px-3 py-1.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:bg-gray-100 disabled:text-gray-400">
-                    <select x-model="formData.speed.upload_unit" :disabled="unlimited"
-                            class="w-24 px-2 py-1.5 text-xs border border-l-0 border-gray-300 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent rounded-r-sm disabled:bg-gray-100 disabled:text-gray-400">
-                        <option value="KB">KB/s</option>
-                        <option value="MB">MB/s</option>
-                    </select>
-                </div>
-                <div class="flex items-center h-full pt-0 ml-2">
-                    <input type="checkbox" id="speed_up_nolimit" x-model="unlimited" 
-                        class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1 transition-colors">
-                    <label for="speed_up_nolimit" class="ml-2 text-xs text-gray-700">Ilimitado</label>
-                </div>
-            </div>
+    <!-- Tab -->
+    <div class="border-b border-gray-200">
+        <button type="button" class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600 -mb-px">
+            Configuración avanzada
+        </button>
+    </div>
+    
+    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[300px]">
+        <!-- Header -->
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+            <div class="w-28">Servicio</div>
+            <div class="w-28 text-center">Resultado</div>
+            <div class="flex-1 text-center">Límite de velocidad</div>
+            <div class="w-28 text-center">Límite de car...</div>
+            <div class="w-28 text-center">Límite de des...</div>
         </div>
 
-        <!-- Download -->
-        <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Bajada (Download)</label>
-            <div class="flex items-center space-x-2" x-data="{ unlimited: true }">
-                <div class="flex-1 flex shadow-sm rounded-sm">
-                     <span class="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-100 text-gray-500 text-xs rounded-l-sm">
-                        <i class="fas fa-arrow-down"></i>
-                    </span>
-                    <input type="number" x-model="formData.speed.download_value" :disabled="unlimited"
-                           class="flex-1 w-full px-3 py-1.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:bg-gray-100 disabled:text-gray-400">
-                    <select x-model="formData.speed.download_unit" :disabled="unlimited"
-                            class="w-24 px-2 py-1.5 text-xs border border-l-0 border-gray-300 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent rounded-r-sm disabled:bg-gray-100 disabled:text-gray-400">
-                        <option value="KB">KB/s</option>
-                        <option value="MB">MB/s</option>
-                    </select>
+        <div class="flex-1 overflow-y-auto">
+             <template x-for="service in ['File Station', 'FTP', 'Rsync']" :key="service">
+                <div class="flex items-center px-4 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+                    
+                    <!-- Service Name -->
+                    <div class="w-28 text-sm text-gray-800" x-text="service"></div>
+
+                    <!-- Resultado -->
+                    <div class="w-28 text-center text-xs text-gray-500">
+                        <span x-text="formData.speed[service]?.mode === 'limit' ? (formData.speed[service].up + '/' + formData.speed[service].down) : 'Sin límite / Sin...'"></span>
+                    </div>
+
+                    <!-- Límite de velocidad (Dropdown) -->
+                    <div class="flex-1 px-2">
+                        <select x-model="formData.speed[service].mode" 
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                            <option value="group">Aplicar configuración de ...</option>
+                            <option value="limit">Configurar límite de velocidad</option>
+                            <option value="unlimited">Sin límite</option>
+                        </select>
+                    </div>
+
+                    <!-- Upload -->
+                    <div class="w-28 flex items-center justify-center">
+                        <input type="number" 
+                               x-model="formData.speed[service].up"
+                               :disabled="formData.speed[service].mode !== 'limit'"
+                               placeholder="-"
+                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                    </div>
+
+                    <!-- Download -->
+                    <div class="w-28 flex items-center justify-center">
+                         <input type="number" 
+                               x-model="formData.speed[service].down"
+                               :disabled="formData.speed[service].mode !== 'limit'"
+                               placeholder="-"
+                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                    </div>
                 </div>
-                <div class="flex items-center h-full pt-0 ml-2">
-                    <input type="checkbox" id="speed_down_nolimit" x-model="unlimited" 
-                        class="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500 focus:ring-1 transition-colors">
-                    <label for="speed_down_nolimit" class="ml-2 text-xs text-gray-700">Ilimitado</label>
-                </div>
-            </div>
+             </template>
+        </div>
+        
+        <!-- Footer -->
+        <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
+            <span class="text-xs text-gray-500">3 elementos</span>
+            <button type="button" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-sync-alt text-xs"></i>
+            </button>
         </div>
     </div>
 </div>

@@ -52,33 +52,53 @@ class UserWizardDataView(LoginRequiredMixin, View):
     """
     
     def get(self, request):
-        """Retorna JSON con opciones para poblar selects"""
+        """Retorna JSON con opciones para poblar selects o datos de un usuario específico"""
         service = UserService()
+        
+        # Si viene 'name', es para cargar datos de edición
+        username = request.GET.get('name')
+        if username:
+            user_data = service.get_user(username)
+            if user_data:
+                return JsonResponse({'success': True, 'data': user_data})
+            return JsonResponse({'success': False, 'message': 'Usuario no encontrado'}, status=404)
+            
         options = service.get_wizard_options()
         return JsonResponse({'success': True, 'data': options})
 
     def post(self, request):
-        """Recibe el payload JSON completo del Wizard y crea el usuario"""
+        """Recibe el payload JSON completo del Wizard y crea/actualiza el usuario"""
         try:
             data = json.loads(request.body)
+            mode = data.get('mode', 'create')
             service = UserService()
-            result = service.create_user_wizard(data)
+            
+            if mode == 'edit':
+                result = service.update_user_wizard(data)
+                action_type = 'USER_UPDATE_WIZARD'
+            else:
+                result = service.create_user_wizard(data)
+                action_type = 'USER_CREATE_WIZARD'
 
             if result.get('success'):
                 # LOG AUDITORIA
                 from apps.auditoria.services.audit_service import AuditService
                 username = data.get('info', {}).get('name', 'Unknown')
                 AuditService.log(
-                    action='USER_CREATE_WIZARD',
-                    description=f"Usuario '{username}' creado exitosamente vía Wizard.",
+                    action=action_type,
+                    description=f"Usuario '{username}' {'actualizado' if mode == 'edit' else 'creado'} exitosamente vía Wizard.",
                     user=request.user,
                     request=request,
-                    details=result
+                    details={
+                        'nas_result': result,
+                        'user_affected': username,
+                        'mode': mode
+                    }
                 )
 
             return JsonResponse(result)
         except Exception as e:
-            logger.error(f"Error in user wizard POST: {e}")
+            logger.exception(f"Error in user wizard POST")
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 class UserDeleteView(LoginRequiredMixin, View):
