@@ -1,0 +1,47 @@
+RUTAS DE SERVICIOS DE ARCHIVOS (API NAS SYNOLOGY)
+=================================================
+
+A continuación se listan las APIs disponibles para la gestión de servicios de archivos, extraídas de info_api_nas.txt.
+Formato: API Name | Path | MaxVersion
+
+1. SMB (Windows File Service)
+-----------------------------
+SYNO.Core.FileServ.SMB              | entry.cgi | v3
+SYNO.Core.FileServ.SMB.ConfBackup   | entry.cgi | v1
+SYNO.Core.FileServ.SMB.Control      | entry.cgi | v1
+SYNO.Core.FileServ.SMB.MSDFS        | entry.cgi | v1
+
+2. AFP (Apple File Service - "AFT")
+-----------------------------------
+SYNO.Core.FileServ.AFP              | entry.cgi | v2
+
+3. NFS (Linux File Service)
+---------------------------
+SYNO.Core.FileServ.NFS                  | entry.cgi | v3
+SYNO.Core.FileServ.NFS.AdvancedSetting  | entry.cgi | v1
+SYNO.Core.FileServ.NFS.ConfBackup       | entry.cgi | v1
+SYNO.Core.FileServ.NFS.IDMap            | entry.cgi | v1
+SYNO.Core.FileServ.NFS.Kerberos         | entry.cgi | v1
+SYNO.Core.FileServ.NFS.SharePrivilege   | entry.cgi | v1
+
+4. FTP (File Transfer Protocol)
+-------------------------------
+SYNO.Core.FileServ.FTP              | entry.cgi | v3
+SYNO.Core.FileServ.FTP.ChrootUser   | entry.cgi | v2
+SYNO.Core.FileServ.FTP.SFTP         | entry.cgi | v1
+SYNO.Core.FileServ.FTP.Security     | entry.cgi | v1
+
+5. Rsync
+--------
+SYNO.Core.FileServ.Rsync.Account    | entry.cgi | v1
+
+6. Avanzado / Otros Servicios de Archivos
+-----------------------------------------
+SYNO.Core.FileServ.ServiceDiscovery | entry.cgi | v1  (Bonjour/SSDP Discovery)
+SYNO.Core.FileServ.ReflinkCopy      | entry.cgi | v1
+SYNO.Core.FileServ.TFTP             | entry.cgi | v1  (Revisar SYNO.Core.TFTP si existe por separado)
+
+NOTAS:
+- Todas las rutas base son: /webapi/entry.cgi
+- La mayoría requiere sesión de autenticación (sid).
+- RequestFormat suele ser JSON.

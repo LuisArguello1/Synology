@@ -8,11 +8,18 @@
 -->
 
 <!-- Navbar superior - Claro, limpio, profesional -->
-<header class="bg-white border-b border-gray-200 h-16 fixed top-0 right-0 left-64 z-30 shadow-sm">
+<header id="main-navbar" class="bg-white border-b border-gray-200 h-16 fixed top-0 right-0 z-30 shadow-sm transition-all duration-100 ease-out">
     <div class="h-full px-6 flex items-center justify-between">
         
         <!-- Lado izquierdo: Breadcrumbs o título -->
         <div class="flex items-center gap-4 flex-1">
+            
+            <!-- Mobile Menu Toggle -->
+            <button id="mobile-menu-toggle" class="lg:hidden text-gray-500 hover:text-gray-700 focus:outline-none" 
+                    aria-label="Toggle Menu">
+                <i class="fas fa-bars text-lg"></i>
+            </button>
+            
             {% if breadcrumbs %}
                 {% include 'components/breadcrumbs.html' with breadcrumbs=breadcrumbs %}
             {% else %}
@@ -100,4 +107,4 @@
 </header>
 
 <!-- Spacer para evitar que el contenido quede debajo del navbar -->
-<div class="h-16"></div>
+{% comment %} <div class="h-16"></div> {% endcomment %}

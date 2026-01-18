@@ -1,0 +1,303 @@
+/* Sidebar Core Variables */
+:root {
+    /* 
+       Decoupled Variables:
+       - panel-width: Width of the visual sidebar element.
+       - layout-offset: Spacing pushed by sidebar on the main content.
+    */
+    --sidebar-panel-width: 260px;
+    --layout-offset: 260px;
+
+    --sidebar-bg: rgb(17, 24, 39);
+    /* bg-gray-900 */
+    --navbar-height: 4rem;
+}
+
+/* =========================================
+   Transitions & Utilities
+   ========================================= */
+.no-transition,
+.no-transition * {
+    transition: none !important;
+}
+
+/* =========================================
+   Layout Structure
+   ========================================= */
+
+/* Main Layout Wrapper */
+#main-layout {
+    /* Positioning */
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    padding-top: var(--navbar-height);
+    /* Ensure content starts below navbar */
+
+    /* The core layout mechanism */
+    padding-left: var(--layout-offset);
+
+    transition: padding-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Ensure box model handles padding correctly */
+    box-sizing: border-box;
+
+    background-color: #f9fafb;
+    /* gray-50 fallback */
+}
+
+
+/* Navbar */
+#main-navbar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 30;
+
+    /* Width is remaining space */
+    width: calc(100% - var(--layout-offset));
+
+    /* Left is offset */
+    left: var(--layout-offset);
+
+    transition: left 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+/* =========================================
+   Sidebar Container Modes
+   ========================================= */
+#sidebar-container {
+    background-color: var(--sidebar-bg);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    /* Width controlled by panel var */
+    width: var(--sidebar-panel-width);
+
+    transition: width 0.1s ease-out, height 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* --- DOCKED MODE (Static) --- */
+#sidebar-container.mode-docked {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+#sidebar-container.mode-docked .window-controls {
+    display: none;
+}
+
+#sidebar-container.mode-docked .dock-only-btn {
+    display: flex;
+}
+
+#sidebar-container:not(.mode-docked) .dock-only-btn {
+    display: none;
+}
+
+
+/* --- FLOATING MODE (Window) --- */
+#sidebar-container.mode-floating {
+    position: fixed;
+    /* Dimensions fixed for window mode, or resizable via window logic */
+    /* Override var for safety in window mode */
+    width: 280px !important;
+    height: 600px;
+
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#sidebar-container.mode-floating .window-controls {
+    display: flex;
+    cursor: grab;
+}
+
+#sidebar-container.mode-floating .window-controls:active {
+    cursor: grabbing;
+}
+
+#sidebar-container.mode-floating .sidebar-resizer {
+    display: none;
+}
+
+
+/* --- MINIMIZED MODE (Hidden) --- */
+#sidebar-container.mode-minimized {
+    opacity: 0;
+    pointer-events: none;
+    position: fixed;
+    left: -9999px !important;
+}
+
+
+/* =========================================
+   Resizer Handle (Docked Only)
+   ========================================= */
+.sidebar-resizer {
+    position: absolute;
+    right: -4px;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 60;
+    background: transparent;
+}
+
+.sidebar-resizer:hover {
+    background: rgba(99, 102, 241, 0.5);
+}
+
+body.resizing .sidebar-resizer {
+    background: #6366f1;
+}
+
+
+/* =========================================
+   Floating Icon
+   ========================================= */
+.sidebar-floating-icon {
+    position: fixed;
+    z-index: 100;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--sidebar-bg);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: transform 0.2s, opacity 0.2s;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.5);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-floating-icon.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+.sidebar-floating-icon:hover {
+    transform: scale(1.1);
+    background-color: #4f46e5;
+}
+
+
+/* =========================================
+   Window Controls
+   ========================================= */
+.window-controls {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(30, 41, 59, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px 12px 0 0;
+}
+
+.win-btn {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 8px;
+    transition: transform 0.1s, opacity 0.1s;
+}
+
+.win-btn:hover {
+    color: rgba(0, 0, 0, 0.8);
+    transform: scale(1.1);
+}
+
+.win-btn-close {
+    background-color: #ff5f56;
+}
+
+.win-btn-min {
+    background-color: #ffbd2e;
+}
+
+.win-btn-max {
+    background-color: #27c93f;
+}
+
+.win-btn i {
+    opacity: 0;
+}
+
+.window-controls:hover .win-btn i {
+    opacity: 1;
+}
+
+
+/* =========================================
+   Mobile Overrides
+   ========================================= */
+@media (max-width: 1023px) {
+    :root {
+        --sidebar-panel-width: 280px;
+        --layout-offset: 0px !important;
+    }
+
+    /* Force Drawer Behavior for ALL modes */
+    #sidebar-container,
+    #sidebar-container.mode-docked,
+    #sidebar-container.mode-floating,
+    #sidebar-container.mode-minimized {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        height: 100vh !important;
+        width: 280px !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        z-index: 50;
+        opacity: 1 !important;
+        /* Override minimized opacity */
+        pointer-events: auto !important;
+        border-radius: 0 !important;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    /* Open State */
+    #sidebar-container.mobile-open {
+        transform: translateX(0) !important;
+    }
+
+    /* Layout Reset */
+    #main-layout {
+        padding-left: 0 !important;
+    }
+
+    #main-navbar {
+        left: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Hide desktop-specifics */
+    .sidebar-resizer,
+    .window-controls,
+    .sidebar-floating-icon {
+        display: none !important;
+    }
+}

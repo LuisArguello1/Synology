@@ -28,28 +28,54 @@
     - user: Usuario autenticado (para mostrar info)
 -->
 
-<!-- Sidebar principal - Fijo, oscuro, profesional con efecto glass -->>
-<aside class="fixed left-0 top-0 h-screen w-64 bg-gray-900/95 backdrop-blur-sm text-gray-100 flex flex-col z-40 border-r border-gray-800">
+<!-- Sidebar principal -->
+<aside id="sidebar-container" class="mode-docked fixed left-0 top-0 h-screen bg-gray-900/95 backdrop-blur-sm text-gray-100 flex flex-col z-60 border-r border-gray-800 shadow-xl">
     
-    <!-- Logo y nombre del sistema -->
-    <div class="flex items-center justify-between h-14 border-b border-gray-800 px-4">
-        <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-md flex items-center justify-center">
-                <i class="fas fa-server text-white text-xs"></i>
-            </div>
-            <h1 class="text-base font-semibold tracking-tight">NAS Manager</h1>
+    <!-- Resizer Handle (Docked Only) -->
+    <div class="sidebar-resizer" title="Arrastrar para redimensionar"></div>
+
+    <!-- Window Controls (Floating Only) -->
+    <div class="window-controls">
+        <button class="win-btn win-btn-close" onclick="sidebarAPI.dock()" aria-label="Acoplar" title="Acoplar a la izquierda">
+            <i class="fas fa-times"></i>
+        </button>
+        <button class="win-btn win-btn-min" onclick="sidebarAPI.minimize()" aria-label="Minimizar" title="Minimizar a icono">
+            <i class="fas fa-minus"></i>
+        </button>
+        <!-- Optional Maximize -->
+        <button class="win-btn win-btn-max" onclick="sidebarAPI.dock()" aria-label="Expandir" title="Acoplar">
+            <i class="fas fa-expand-alt"></i>
+        </button>
+    </div>
+
+    <!-- Header: Logo + Undock Button -->
+    <div class="flex items-center justify-between h-14 border-b border-gray-800 px-4 shrink-0">
+        <div class="flex items-center gap-2.5 overflow-hidden">
+            <!-- Undock Button (Visible only when docked via CSS) -->
+            <button class="dock-only-btn text-gray-500 hover:text-white transition-colors" onclick="sidebarAPI.undock()" title="Desacoplar ventana">
+                <i class="fas fa-columns text-lg transform rotate-180"></i>
+            </button>
+            <h1 class="text-base font-semibold tracking-tight whitespace-nowrap">NAS Manager</h1>
+            
+            <!-- Mobile Close Button -->
+            <button class="lg:hidden ml-4 text-gray-400 hover:text-white" onclick="sidebarAPI.toggleMobile(false)">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        <span class="text-[10px] text-gray-500">v1.0</span>
+        
+
+        
+        <span class="text-[10px] text-gray-500 window-controls-hidden">v1.0</span>
     </div>
 
     <!-- Navegación principal -->
-    <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800">
+    <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800 cursor-default">
         <ul class="space-y-1">
             {% for item in menu_items %}
                 {% if item.separator %}
                     <!-- Separador de sección -->
                     <li class="pt-4 pb-2 px-3">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider block truncate">
                             {{ item.label }}
                         </span>
                     </li>
@@ -63,18 +89,18 @@
                                   {% else %}
                                       text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border-l-2 border-transparent
                                   {% endif %}">
-                            <div class="flex items-center gap-2.5">
+                            <div class="flex items-center gap-2.5 overflow-hidden">
                                 <!-- Icono -->
-                                <i class="fas fa-{{ item.icon }} w-4 text-xs
+                                <i class="fas fa-{{ item.icon }} w-4 text-xs flex-shrink-0 text-center
                                           {% if item.active %}text-indigo-400{% else %}text-gray-500 group-hover:text-indigo-400{% endif %}">
                                 </i>
                                 <!-- Nombre -->
-                                <span class="text-xs font-medium">{{ item.name }}</span>
+                                <span class="text-xs font-medium truncate">{{ item.name }}</span>
                             </div>
                             
                             <!-- Badge opcional (contador) -->
                             {% if item.badge %}
-                                <span class="ml-auto px-1.5 py-0.5 text-[10px] font-semibold rounded-sm
+                                <span class="ml-auto flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-sm
                                            {% if item.active %}
                                                bg-indigo-500/20 text-indigo-300
                                            {% else %}
@@ -90,12 +116,12 @@
         </ul>
     </nav>
 
-    <!-- Footer del sidebar: Info del usuario o versión -->
-    <div class="border-t border-gray-800 p-3 bg-gray-800/50">
+    <!-- Footer del sidebar -->
+    <div class="border-t border-gray-800 p-3 bg-gray-800/50 shrink-0">
         {% if user.is_authenticated %}
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center gap-2.5 overflow-hidden">
                 <!-- Avatar -->
-                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center text-white font-semibold text-[10px]">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 flex flex-shrink-0 items-center justify-center text-white font-semibold text-[10px]">
                     {{ user.username|slice:":2"|upper }}
                 </div>
                 <!-- Info del usuario -->
@@ -103,10 +129,6 @@
                     <p class="text-xs font-medium text-gray-300 truncate">{{ user.username|default:"Usuario" }}</p>
                     <p class="text-[10px] text-gray-500 truncate">{{ user.email|default:"No email" }}</p>
                 </div>
-                <!-- Icono settings -->
-                <a href="#" class="text-gray-500 hover:text-gray-300 transition-colors">
-                    <i class="fas fa-cog text-xs"></i>
-                </a>
             </div>
         {% else %}
             <!-- Versión del sistema si no hay usuario -->
