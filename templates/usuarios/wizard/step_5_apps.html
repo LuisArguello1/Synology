@@ -2,7 +2,7 @@
     <div>
         <h2 class="text-lg font-semibold text-gray-800">Asignar permisos de aplicaciones</h2>
     </div>
-    
+
     <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[340px]">
         <!-- Header -->
         <div class="bg-gray-50 border-b border-gray-200">
@@ -21,54 +21,52 @@
         </div>
 
         <div class="flex-1 overflow-y-auto">
-             <template x-for="app in options.apps" :key="app.app">
-                <div class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+            <template x-for="app in options.apps" :key="app.name">
+                <div
+                    class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
                     <!-- App Name -->
-                    <div class="flex-1 text-sm text-gray-800" x-text="app.app"></div>
+                    <div class="flex-1 text-sm text-gray-800" x-text="app.name"></div>
 
                     <!-- Vista Previa -->
                     <div class="w-24 text-center">
-                        <span class="text-xs"
-                              :class="{
-                                  'text-red-600': getEffectiveApp(app.app) === 'deny',
-                                  'text-green-600': getEffectiveApp(app.app) === 'allow',
-                                  'text-gray-400': !getEffectiveApp(app.app) || getEffectiveApp(app.app) === '-'
-                              }" 
-                              x-text="getEffectiveApp(app.app) === 'deny' ? 'Denegar' : (getEffectiveApp(app.app) === 'allow' ? 'Permitir' : '-')"></span>
+                        <span class="text-xs" :class="{
+                                  'text-red-600': getEffectiveApp(app.name) === 'deny',
+                                  'text-green-600': getEffectiveApp(app.name) === 'allow',
+                                  'text-gray-400': !getEffectiveApp(app.name) || getEffectiveApp(app.name) === '-'
+                              }"
+                            x-text="getEffectiveApp(app.name) === 'deny' ? 'Denegar' : (getEffectiveApp(app.name) === 'allow' ? 'Permitir' : '-')"></span>
                     </div>
 
                     <!-- Permisos de Grupo -->
                     <div class="w-32 text-center">
-                        <span class="text-xs text-gray-500" 
-                              x-text="options.group_permissions?.users?.apps?.[app.app] === true ? 'Permitir' : (options.group_permissions?.users?.apps?.[app.app] === false ? 'Denegar' : '-')"></span>
+                        <span class="text-xs text-gray-500"
+                            x-text="options.group_permissions?.users?.apps?.[app.name] === true ? 'Permitir' : (options.group_permissions?.users?.apps?.[app.name] === false ? 'Denegar' : '-')"></span>
                     </div>
-                    
+
                     <!-- Permisos de Usuario (Checkboxes) -->
                     <div class="w-40 flex border-l border-gray-200 ml-2 pl-2">
                         <!-- Permitir -->
                         <div class="flex-1 flex justify-center">
-                            <input type="checkbox" 
-                                   :checked="formData.apps[app.app] === 'allow'"
-                                   @change="formData.apps[app.app] = $event.target.checked ? 'allow' : undefined"
-                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <input type="checkbox" :checked="formData.apps[app.name] === 'allow'"
+                                @change="formData.apps[app.name] = $event.target.checked ? 'allow' : undefined"
+                                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         </div>
 
                         <!-- Denegar -->
                         <div class="flex-1 flex justify-center">
-                            <input type="checkbox" 
-                                   :checked="formData.apps[app.app] === 'deny'"
-                                   @change="formData.apps[app.app] = $event.target.checked ? 'deny' : undefined"
-                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <input type="checkbox" :checked="formData.apps[app.name] === 'deny'"
+                                @change="formData.apps[app.name] = $event.target.checked ? 'deny' : undefined"
+                                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         </div>
                     </div>
                 </div>
             </template>
-            
+
             <div x-show="!options.apps || options.apps.length === 0" class="p-10 text-center text-gray-400 text-sm">
                 <p>No hay aplicaciones disponibles.</p>
             </div>
         </div>
-        
+
         <!-- Footer -->
         <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
             <span class="text-xs text-gray-500" x-text="(options.apps?.length || 0) + ' elementos'"></span>
@@ -79,6 +77,7 @@
     </div>
 
     <div class="text-xs text-blue-700">
-        <span class="text-blue-600 underline">Observación:</span> El permiso lo determinan los permisos de usuario y grupo. Prioridad de permisos: <strong>Denegar > Permitir</strong>.
+        <span class="text-blue-600 underline">Observación:</span> El permiso lo determinan los permisos de usuario y
+        grupo. Prioridad de permisos: <strong>Denegar > Permitir</strong>.
     </div>
 </div>

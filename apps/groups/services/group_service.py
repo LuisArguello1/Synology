@@ -17,6 +17,9 @@ class GroupService:
     def __init__(self):
         self.config = NASConfig.get_active_config()
         self.connection = ConnectionService(self.config)
+        # Autenticar automáticamente para tener SID disponible en todas las llamadas
+        if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+            self.connection.authenticate()
         
         # Archivo de simulación para grupos
         self.sim_db_path = os.path.join(settings.BASE_DIR, 'nas_sim_groups.json')

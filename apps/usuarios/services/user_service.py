@@ -310,23 +310,89 @@ class UserService:
         if not username: return {'success': False, 'message': 'Username is required'}
 
         # Paso 1: Crear Base
+        admin_conn = None
+        current_sid = None
         try:
+            # Construir parámetros dinámicamente para evitar enviar strings vacíos
+            # que podrían causar problemas de validación o permisos
             params = {
                 'name': username,
-                'password': info['password'],
-                'email': info.get('email', ''),
-                'description': info.get('description', ''),
-                'expired': 'normal',
-                'send_welcome_email': info.get('send_notification', False),
-                'cannot_change_passwd': info.get('cannot_change_password', False)
+                'password': info['password']
             }
-            resp = self.connection.request('SYNO.Core.User', 'create', version=1, params=params)
+            
+            # Solo agregar campos opcionales si tienen valor
+            if info.get('email'):
+                params['email'] = info['email']
+                
+            if info.get('description'):
+                params['description'] = info['description']
+                
+            # Booleanos solo si son True o si la API los requiere explícitamente
+            # Para send_welcome_email, a veces requiere configuración de mail server previa
+            if info.get('send_notification'):
+                params['send_welcome_email'] = 'true'
+            
+            if info.get('cannot_change_password'):
+                params['cannot_change_passwd'] = 'true'
+                
+            # Expired siempre enviamos normal por defecto
+            params['expired'] = 'normal'
+            
+            print("=" * 80)
+            print("CREATING USER WITH DEDICATED ADMIN SESSION (SCOPE='DSM'):")
+            print(f"  params: {params}")
+            print("=" * 80)
+            
+            # Crear conexión dedicada con permisos administrativos (Session: DSM)
+            # La sesión 'FileStation' por defecto no tiene permisos para crear usuarios (Error 105)
+            admin_conn = ConnectionService(self.config)
+            auth_result = admin_conn.authenticate(session_alias='DSM')
+            
+            if not auth_result.get('success'):
+                logger.error(f"Failed to create admin session: {auth_result}")
+                return {'success': False, 'message': f"Failed to authenticate as admin: {auth_result.get('message')}"}
+            
+            current_sid = auth_result.get('sid')
+            logger.info(f"Admin session created successfully. SID: {current_sid[:10]}...")
+            
+            # DIAGNÓSTICO: Insertar prueba de lectura antes de escritura
+            print("=" * 80)
+            print("DIAGNOSTICO DE PERMISOS (SYNO.Core.User.list):")
+            try:
+                diag_resp = admin_conn.request('SYNO.Core.User', 'list', version=1, params={'limit': 1})
+                print(f"User List Result: {diag_resp}")
+                if not diag_resp.get('success'):
+                    print(f"❌ FALLÓ LECTURA DE USUARIOS: {diag_resp}")
+                else:
+                    print(f"✅ LECTURA EXITOSA. Total usuarios: {diag_resp.get('data', {}).get('total')}")
+            except Exception as e:
+                print(f"❌ EXCEPCIÓN EN DIAGNÓSTICO: {e}")
+            print("=" * 80)
+            
+            logger.info(f"Creating user with params: {params}")
+            resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
+            
+            print("=" * 80)
+            print("SYNOLOGY API RESPONSE (ADMIN SESSION):")
+            print(resp)
+            print("=" * 80)
+            
             if not resp.get('success'):
-                error_msg = resp.get('error', {}).get('code', 'Unknown Error')
-                return {'success': False, 'message': f"Synology Error: {error_msg}"}
+                error_code = resp.get('error', {}).get('code', 'Unknown')
+                error_msg = f"Synology Error: {error_code}"
+                logger.error(f"User creation failed: {error_msg}, Full response: {resp}")
+                return {'success': False, 'message': error_msg}
+                
             results['steps'].append('User Created')
+            
         except Exception as e:
+            logger.exception(f"Exception creating user: {str(e)}")
             return {'success': False, 'message': f'Exception: {str(e)}'}
+        finally:
+            # Siempre cerrar la sesión administrativa dedicada
+            if admin_conn and current_sid:
+                logger.info("Closing admin session...")
+                admin_conn.logout(current_sid)
 
         # Paso 2: Aplicar configuraciones avanzadas
         self.apply_user_settings(username, data, results)
