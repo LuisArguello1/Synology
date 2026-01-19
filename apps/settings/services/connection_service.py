@@ -165,12 +165,12 @@ class ConnectionService:
                 'error': str(e)
             }
 
-    def authenticate(self):
+    def authenticate(self, session_alias='FileStation'):
         """
         Autentica usando flujo correcto:
         1. Consulta ruta de SYNO.API.Auth
         2. Usa version 3 (o máxima compatible)
-        3. Session = FileStation
+        3. Session = FileStation (por defecto) o DSM (para tareas admin)
         """
         # Chequeo Modo Offline
         if getattr(settings, 'NAS_OFFLINE_MODE', False):
@@ -190,15 +190,18 @@ class ConnectionService:
             api_path = auth_info.get('path', 'entry.cgi')
             max_ver = auth_info.get('maxVersion', 3)
             
-            # Synology Auth v3 es lo estándar para File Station, pero no pasarnos de 3 si reporta más
-            # El usuario especificó explicitamente v3.
-            use_version = 3
-            if max_ver < 3:
-                use_version = max_ver
+            # Utilizar la versión máxima disponible para Auth
+            # Versiones antiguas (v2/v3) pueden crear sesiones con permisos limitados
+            # Especialmente para sesiones 'DSM'
+            use_version = max_ver
+            
+            # Si max_ver es muy alto (ej 7) y hay problemas, podríamos limitar, 
+            # pero probemos con la más alta primero para garantizar permisos modernos.
+            if use_version > 6: use_version = 6 # Cap conservador en 6 por compatibilidad probada
                 
             url = f"{self.get_base_url()}/webapi/{api_path}"
             
-            logger.info(f"Authenticating via {api_path} (v{use_version})...")
+            logger.info(f"Authenticating via {api_path} (v{use_version}) session={session_alias}...")
             
             params = {
                 'api': 'SYNO.API.Auth',
@@ -206,7 +209,7 @@ class ConnectionService:
                 'method': 'login',
                 'account': self.config.admin_username,
                 'passwd': self.config.admin_password,
-                'session': 'FileStation',   # REQUERIDO: FileStation
+                'session': session_alias,   # Configurable: FileStation o DSM
                 'format': 'sid'             # Obtenemos SID en JSON
             }
             

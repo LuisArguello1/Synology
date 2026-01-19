@@ -5,7 +5,8 @@
 
     <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[340px]">
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+        <div
+            class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
             <div class="flex-1">Volumen/carpeta c...</div>
             <div class="w-28 text-center">Cuota efectiva</div>
             <div class="w-28 text-center">Cuota de grupo</div>
@@ -14,24 +15,24 @@
 
         <div class="flex-1 overflow-y-auto">
             <!-- Volume Group Header -->
-            <template x-for="vol in options.volumes" :key="vol">
+            <template x-for="vol in options.volumes" :key="vol.id || vol.name">
                 <div>
                     <!-- Volume Header -->
                     <div class="flex items-center px-4 py-2 bg-gray-50 border-b border-gray-200">
                         <div class="flex-1 text-sm font-medium text-gray-700 flex items-center">
                             <i class="fas fa-chevron-down text-[10px] mr-2 text-gray-400"></i>
-                            <span x-text="vol.replace('/volume', 'Volumen ') + ' (btrfs)'"></span>
+                            <span x-text="(vol.name || vol).replace('/volume', 'Volumen ') + ' (btrfs)'"></span>
                         </div>
                         <div class="w-28"></div>
                         <div class="w-28"></div>
                         <div class="w-40"></div>
                     </div>
-                    
+
                     <!-- Shares under this volume -->
                     <template x-for="share in options.shares" :key="share.name">
-                        <div class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors"
-                             x-data="{ editing: false }">
-                            
+                        <div
+                            class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
+
                             <!-- Share Name (indented) -->
                             <div class="flex-1 text-sm text-gray-800 pl-6" x-text="share.name"></div>
 
@@ -47,16 +48,15 @@
 
                             <!-- User Quota (Input + Unit) -->
                             <div class="w-40 flex items-center gap-1.5 justify-center">
-                                <input type="text" 
-                                       :placeholder="'Sin límite'"
-                                       :value="formData.quota[share.name]?.size || ''"
-                                       @input="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: 'GB'}; formData.quota[share.name].size = $event.target.value"
-                                       class="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                                <select x-model="formData.quota[share.name] ? formData.quota[share.name].unit : 'GB'"
-                                        @change="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: $event.target.value}"
-                                        class="w-14 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                                <input type="text" :placeholder="'Sin límite'"
+                                    :value="formData.quota[share.name]?.size || ''"
+                                    @input="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: 'GB'}; formData.quota[share.name].size = $event.target.value"
+                                    class="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                <select :value="formData.quota[share.name]?.unit || 'GB'"
+                                    @change="if(!formData.quota[share.name]) formData.quota[share.name] = {size: 0, unit: $event.target.value}; else formData.quota[share.name].unit = $event.target.value"
+                                    class="w-14 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                                     <option value="MB">MB</option>
-                                    <option value="GB" selected>GB</option>
+                                    <option value="GB">GB</option>
                                     <option value="TB">TB</option>
                                 </select>
                             </div>
@@ -65,7 +65,7 @@
                 </div>
             </template>
         </div>
-        
+
         <!-- Footer -->
         <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
             <span class="text-xs text-gray-500" x-text="(options.shares?.length || 0) + ' elementos'"></span>
@@ -74,8 +74,9 @@
             </button>
         </div>
     </div>
-    
+
     <div class="text-xs text-blue-700">
-        <span class="text-blue-600 underline">Observación:</span> Puede especificar la Cuota de usuario para un volumen o una carpeta individuales; en caso contrario, se aplicará la Cuota de grupo.
+        <span class="text-blue-600 underline">Observación:</span> Puede especificar la Cuota de usuario para un volumen
+        o una carpeta individuales; en caso contrario, se aplicará la Cuota de grupo.
     </div>
 </div>

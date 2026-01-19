@@ -72,52 +72,52 @@ class MenuService:
         })
         
         # Solo para administradores
-        if is_staff:
-            menu.append({
-                'name': 'Usuarios',
-                'icon': 'users', 
-                'url': users_url,
-                'active': current_path.startswith('/usuarios/')
-            })
-            menu.append({
-                'name': 'Grupos',
-                'icon': 'users', 
-                'url': group_url,
-                'active': current_path.startswith('/grupos/')
-            })
-            menu.append({
-                'name': 'Auditoría',
-                'icon': 'clipboard-list',
-                'url': audit_url,
-                'active': current_path.startswith('/auditoria/')
-            })
-            menu.append({
-                'name': 'Carpetas Compartidas',
-                'icon': 'folder',
-                'url': share_folder_url,
-                'active': current_path.startswith('/carpeta/')
-            })
+        
+        menu.append({
+            'name': 'Usuarios',
+            'icon': 'users', 
+            'url': users_url,
+            'active': current_path.startswith('/usuarios/')
+        })
+        menu.append({
+            'name': 'Grupos',
+            'icon': 'users', 
+            'url': group_url,
+            'active': current_path.startswith('/grupos/')
+        })
+        menu.append({
+            'name': 'Auditoría',
+            'icon': 'clipboard-list',
+            'url': audit_url,
+            'active': current_path.startswith('/auditoria/')
+        })
+        menu.append({
+            'name': 'Carpetas Compartidas',
+            'icon': 'folder',
+            'url': share_folder_url,
+            'active': current_path.startswith('/carpeta/')
+        })
+        
+        # Servicios de Archivos
+        try:
+            file_services_url = reverse('archivos_servicios:index')
+        except:
+            file_services_url = '#'
             
-            # Servicios de Archivos
-            try:
-                file_services_url = reverse('archivos_servicios:index')
-            except:
-                file_services_url = '#'
-                
-            menu.append({
-                'name': 'Servicios de Archivos',
-                'icon': 'network-wired',
-                'url': file_services_url,
-                'active': current_path.startswith('/servicios-archivos/')
-            })
-            
-            # Sección de Configuración
-            menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
-            menu.append({
-                'name': 'NAS Config',
-                'icon': 'cog',
-                'url': settings_url,
-                'active': current_path == settings_url
-            })
+        menu.append({
+            'name': 'Servicios de Archivos',
+            'icon': 'network-wired',
+            'url': file_services_url,
+            'active': current_path.startswith('/servicios-archivos/')
+        })
+        
+        # Sección de Configuración
+        menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
+        menu.append({
+            'name': 'NAS Config',
+            'icon': 'cog',
+            'url': settings_url,
+            'active': current_path == settings_url
+        })
         
         return menu

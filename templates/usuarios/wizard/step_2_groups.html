@@ -2,38 +2,40 @@
     <div>
         <h2 class="text-lg font-semibold text-gray-800">Unir grupos</h2>
     </div>
-    
+
     <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[380px]">
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
+        <div
+            class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
             <div class="flex-1">Nombre</div>
             <div class="w-48 hidden sm:block">Descripción</div>
             <div class="w-20 text-center">Agregar</div>
         </div>
-        
+
         <!-- List -->
         <div class="flex-1 overflow-y-auto">
             <template x-for="group in options.groups" :key="group.name">
-                <div class="flex items-center px-4 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors cursor-pointer"
-                     @click="$refs['chk_'+group.name].click()">
+                <div
+                    class="flex items-center px-4 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
                     <!-- Name -->
                     <div class="flex-1 text-sm text-gray-800" x-text="group.name"></div>
                     <!-- Description -->
-                    <div class="w-48 hidden sm:block text-sm text-gray-500 truncate" x-text="group.description || '-'"></div>
+                    <div class="w-48 hidden sm:block text-sm text-gray-500 truncate" x-text="group.description || '-'">
+                    </div>
                     <!-- Checkbox -->
-                    <div class="w-20 flex justify-center" @click.stop>
-                        <input type="checkbox" :value="group.name" :x-ref="'chk_'+group.name" x-model="formData.groups"
-                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition-colors">
+                    <div class="w-20 flex justify-center">
+                        <input type="checkbox" :value="group.name" x-model="formData.groups"
+                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition-colors cursor-pointer">
                     </div>
                 </div>
             </template>
-            
+
             <!-- Empty State -->
             <div x-show="!options.groups || options.groups.length === 0" class="p-10 text-center text-gray-400 text-sm">
                 <p>No hay grupos disponibles.</p>
             </div>
         </div>
-        
+
         <!-- Footer -->
         <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
             <span class="text-xs text-gray-500" x-text="(options.groups?.length || 0) + ' elementos'"></span>
