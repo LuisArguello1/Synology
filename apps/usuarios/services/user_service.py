@@ -70,7 +70,18 @@ class UserService:
             )
             
             if response.get('success'):
-                return response.get('data', {}).get('users', [])
+                data = response.get('data', {})
+                users_list = []
+                if isinstance(data, list):
+                    users_list = data
+                elif isinstance(data, dict):
+                    users_list = data.get('users') or data.get('items') or data.get('datalist', [])
+                
+                for u in users_list:
+                    if 'user_name' in u and 'name' not in u: u['name'] = u['user_name']
+                    if 'desc' in u and 'description' not in u: u['description'] = u['desc']
+                
+                return users_list
             
             logger.error(f"Error listing users: {response}")
             return []
@@ -158,7 +169,10 @@ class UserService:
 
             # 1. Grupos (Service)
             groups = group_service.list_groups()
-            options['groups'] = [{'name': g.get('name'), 'description': g.get('description', '')} for g in groups]
+            options['groups'] = [
+                {'name': g.get('name') or g.get('group_name'), 'description': g.get('description') or g.get('desc', '')} 
+                for g in groups if g.get('name') or g.get('group_name')
+            ]
 
             # 2. Shares (Service)
             shares = resource_service.get_shared_folders()
@@ -193,13 +207,12 @@ class UserService:
                                     'shares': {sp['share_name']: sp['privilege'] for sp in g_info.get('share_privilege', [])},
                                     'apps': {}
                                 }
-                                # Apps
-                                apps_priv = g_info.get('app_privilege', {})
                                 if isinstance(apps_priv, dict):
                                     options['group_permissions'][g_name]['apps'] = apps_priv
                                 elif isinstance(apps_priv, list):
                                     for ap in apps_priv:
-                                        options['group_permissions'][g_name]['apps'][ap['app']] = ap.get('allow', False)
+                                        if isinstance(ap, dict) and 'app' in ap:
+                                            options['group_permissions'][g_name]['apps'][ap['app']] = ap.get('allow', False)
                 except Exception as ge:
                     logger.error(f"Error fetching all group permissions: {ge}")
             else:
