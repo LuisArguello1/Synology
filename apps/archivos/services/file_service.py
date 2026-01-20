@@ -134,21 +134,25 @@ class FileService:
         except Exception as e:
              return {'success': False, 'error': {'code': 9999, 'msg': str(e)}}
 
-    def delete_item(self, path):
+    def delete_item(self, paths):
         """
-        Elimina archivo o carpeta (sincrónico).
+        Elimina archivo(s) o carpeta(s) (sincrónico).
         API: SYNO.FileStation.Delete method=delete
         """
         if self.offline_mode:
              return {'success': True}
 
         try:
+            # paths puede ser una lista o un string separado por comas
+            if isinstance(paths, list):
+                paths = ','.join(paths)
+                
             response = self.connection.request(
                 api='SYNO.FileStation.Delete',
                 method='delete',
                 version=2,
                 params={
-                    'path': path,
+                    'path': paths,
                     'recursive': 'true' 
                 }
             )
@@ -304,15 +308,42 @@ class FileService:
         except Exception as e:
             return {'success': False, 'error': {'code': 9999, 'msg': str(e)}}
             
+    def get_file_stream(self, path):
+        """
+        Obtiene stream de archivo para descarga o visualización.
+        API: SYNO.FileStation.Download method=download
+        """
+        if self.offline_mode:
+             return None, "Offline mode"
+
+        try:
+            import requests
+            url = f"{self.connection.get_base_url()}/webapi/entry.cgi"
+            sid = self.connection.get_sid()
+            
+            params = {
+                'api': 'SYNO.FileStation.Download',
+                'method': 'download',
+                'version': 2,
+                'path': path,
+                'mode': 'download',
+                '_sid': sid
+            }
+            
+            response = requests.get(url, params=params, stream=True, verify=False, timeout=300)
+            if response.status_code == 200:
+                return response, None
+            else:
+                return None, f"HTTP Error {response.status_code}"
+                
+        except Exception as e:
+            logger.exception("Error getting file stream")
+            return None, str(e)
+
     def get_download_url(self, path):
         """
         Devuelve URL para descargar archivo.
-        API: SYNO.FileStation.Download method=download
-        Nota: Esto normalmente devuelve el binario. Para que el frontend lo descargue,
-        necesitamos exponer un endpoint en Django que haga proxy o generar una URL con SID (inseguro si se expone, pero util en intranet).
-        
-        Mejor enfoque: Endpoint Django /download?path=... que usa ConnectionService para stream.
-        Aquí solo validamos o preparamos.
+        En esta implementación, redirigimos a nuestro propio endpoint interno.
         """
         return {'success': True, 'path': path}
 

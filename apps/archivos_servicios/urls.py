@@ -17,5 +17,7 @@ urlpatterns = [
     path('api/nfs/update/', views.api_update_nfs, name='api_update_nfs'),
     path('api/ftp/update/', views.api_update_ftp, name='api_update_ftp'),
     path('api/rsync/update/', views.api_update_rsync, name='api_update_rsync'),
+    path('api/rsync/account/', views.api_get_rsync_account, name='api_get_rsync_account'),
+    path('api/rsync/account/update/', views.api_update_rsync_account, name='api_update_rsync_account'),
     path('api/advanced/update/', views.api_update_advanced, name='api_update_advanced'),
 ]

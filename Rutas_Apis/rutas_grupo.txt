@@ -1,0 +1,41 @@
+================================================================================
+RUTAS DE API PARA GESTIÓN DE GRUPOS (EXTRAS DE info_api_nas.txt)
+================================================================================
+
+Basado en el descubrimiento de APIs del NAS (info_api_nas.txt), las rutas 
+oficiales para la gestión de grupos son las siguientes:
+
+1. AUTENTICACIÓN (Login/Logout)
+   - API: SYNO.API.Auth
+   - Path: /webapi/entry.cgi (v1 a v7)
+
+2. GESTIÓN DE GRUPOS (Crear, Listar, Eliminar, Info, Update)
+   - API: SYNO.Core.Group
+   - Path: /webapi/entry.cgi (v1)
+
+3. MIEMBROS DEL GRUPO
+   - API: SYNO.Core.Group.Member
+   - Path: /webapi/entry.cgi (v1)
+
+4. PERMISOS DE CARPETAS (Compartidas)
+   - API: SYNO.Core.Share.Permission
+   - Path: /webapi/entry.cgi (v1)
+
+5. CONFIGURACIÓN DE GRUPOS (Ajustes globales)
+   - API: SYNO.Core.GroupSettings
+   - Path: /webapi/entry.cgi (v1)
+
+6. PRIVILEGIOS DE APLICACIONES
+   - API: SYNO.Core.AppPriv
+   - Path: /webapi/entry.cgi (v1 a v2)
+
+7. CUOTAS DE ALMACENAMIENTO (Por grupo)
+   - API: SYNO.Core.Quota
+   - Path: /webapi/entry.cgi (v1)
+
+================================================================================
+IMPORTANTE PARA EL DESARROLLO:
+- Se DEBE usar una sesión 'DSM' para todas las operaciones de escritura/borrado.
+- El SID debe pasarse en la Query String para evitar Error 105.
+- La creación de grupos suele requerir permisos de Administrador total.
+================================================================================

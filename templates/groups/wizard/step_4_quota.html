@@ -1,51 +1,59 @@
 <div x-show="currentStep === 4" class="h-full flex flex-col">
     <div class="mb-4">
         <h2 class="text-lg font-semibold text-gray-800">Asignar cuota de grupo</h2>
-        <p class="text-xs text-gray-600 mt-1">Establezca límites de uso de almacenamiento para este grupo en cada volumen.</p>
+        <p class="text-xs text-gray-600 mt-1">Establezca límites de uso de almacenamiento para este grupo.</p>
     </div>
     
-    <div class="flex-1 overflow-y-auto pr-1 space-y-3 pb-2" x-data="{ expandedVol: null }">
+    <div class="flex-1 overflow-y-auto pr-1 space-y-3 pb-2 min-h-0" x-data="{ expandedVol: null }">
          <template x-for="vol in options.volumes" :key="vol.id">
-            <div class="border border-gray-200 rounded overflow-hidden">
+            <div class="border border-gray-200 rounded-sm overflow-hidden bg-white">
                 <!-- Header Accordion -->
                 <button type="button" @click="expandedVol = expandedVol === vol.id ? null : vol.id"
-                    class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none">
+                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors focus:outline-none"
+                    :class="{'bg-blue-50/30': expandedVol === vol.id, 'bg-white': expandedVol !== vol.id}">
                     <div class="flex items-center gap-3">
-                         <i class="fas fa-hdd text-gray-400 text-lg"></i>
+                         <div class="w-8 h-8 rounded-sm bg-gray-100 flex items-center justify-center text-gray-400">
+                            <i class="fas fa-hdd text-sm"></i>
+                         </div>
                          <div class="text-left">
-                             <div class="text-sm font-semibold text-gray-700" x-text="vol.name"></div>
-                             <div class="text-xs text-gray-500">
+                             <div class="text-[11px] font-bold text-gray-700" x-text="vol.name"></div>
+                             <div class="text-[10px] text-gray-400 font-medium">
                                 <span x-text="formData.quotas[vol.id]?.is_unlimited ? 'Sin límite' : ((formData.quotas[vol.id]?.amount || 0) + ' ' + (formData.quotas[vol.id]?.unit || 'MB'))"></span>
                              </div>
                          </div>
                     </div>
-                     <i class="fas text-gray-400 text-xs transition-transform transform"
+                     <i class="fas text-[9px] text-gray-400 transition-transform duration-200"
                        :class="{'fa-chevron-down': expandedVol !== vol.id, 'fa-chevron-up': expandedVol === vol.id}"></i>
                 </button>
                 
                 <!-- Body Accordion -->
                  <div x-show="expandedVol === vol.id" 
-                     class="px-4 py-4 bg-white border-t border-gray-200">
+                      x-transition:enter="transition ease-out duration-100"
+                      x-transition:enter-start="opacity-0 transform -translate-y-2"
+                      x-transition:enter-end="opacity-100 transform translate-y-0"
+                      class="px-4 py-4 bg-white border-t border-gray-100">
                      
-                     <div class="flex items-center gap-4">
-                         <label class="flex items-center gap-2 cursor-pointer">
+                     <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                         <label class="flex items-center gap-2 cursor-pointer group">
                              <input type="checkbox" x-model="formData.quotas[vol.id].is_unlimited"
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                             <span class="text-sm text-gray-700">Sin límite</span>
+                                class="rounded-sm border-gray-300 text-blue-600 focus:ring-0 h-3.5 w-3.5 transition-colors">
+                             <span class="text-xs font-bold text-gray-600 group-hover:text-gray-900 transition-colors">SIN LÍMITE</span>
                          </label>
                          
-                         <div class="flex items-center gap-2" :class="{'opacity-50 pointer-events-none': formData.quotas[vol.id].is_unlimited}">
-                             <span class="text-sm text-gray-600">Límite:</span>
-                             <input type="number" min="0" x-model.number="formData.quotas[vol.id].amount"
-                                @keydown="if('+-e'.includes($event.key)) $event.preventDefault()"
-                                class="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500" placeholder="0">
-                                
-                             <select x-model="formData.quotas[vol.id].unit"
-                                class="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                 <option value="MB">MB</option>
-                                 <option value="GB">GB</option>
-                                 <option value="TB">TB</option>
-                             </select>
+                         <div class="flex items-center gap-2 transition-opacity duration-200" :class="{'opacity-40 pointer-events-none': formData.quotas[vol.id].is_unlimited}">
+                             <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Límite:</span>
+                             <div class="flex items-center gap-1">
+                                <input type="number" min="0" x-model.number="formData.quotas[vol.id].amount"
+                                   @keydown="if('+-e'.includes($event.key)) $event.preventDefault()"
+                                   class="w-20 px-2 py-1.5 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="0">
+                                   
+                                <select x-model="formData.quotas[vol.id].unit"
+                                   class="px-1.5 py-1.5 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white font-bold text-gray-600">
+                                     <option value="MB">MB</option>
+                                     <option value="GB">GB</option>
+                                     <option value="TB">TB</option>
+                                </select>
+                             </div>
                          </div>
                      </div>
                  </div>
@@ -53,9 +61,9 @@
          </template>
          
          <template x-if="!options.volumes || options.volumes.length === 0">
-             <div class="text-center py-8 text-gray-400">
-                 <i class="fas fa-database text-2xl mb-2"></i>
-                 <p class="text-xs">No se detectaron volúmenes disponibles.</p>
+             <div class="text-center py-10">
+                 <i class="fas fa-database text-2xl text-gray-200 mb-2"></i>
+                 <p class="text-[11px] text-gray-400 font-medium">No se detectaron volúmenes disponibles.</p>
              </div>
          </template>
     </div>

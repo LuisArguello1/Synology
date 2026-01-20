@@ -145,3 +145,31 @@ def api_update_advanced(request):
         return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_http_methods(["GET"])
+def api_get_rsync_account(request):
+    """
+    API: Obtiene la cuenta rsync.
+    """
+    service = FileServicesService()
+    result = service.get_rsync_account()
+    return JsonResponse(result)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_http_methods(["POST"])
+def api_update_rsync_account(request):
+    """
+    API: Actualiza la cuenta rsync.
+    """
+    try:
+        data = json.loads(request.body)
+        service = FileServicesService()
+        result = service.set_rsync_account(data)
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
