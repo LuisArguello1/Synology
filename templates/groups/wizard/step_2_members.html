@@ -8,16 +8,17 @@
     <div class="flex items-center justify-between">
         <div class="relative w-full sm:w-64">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
-            <input type="text" x-model="filters.members" placeholder="Filtrar usuarios..." 
+            <input type="text" x-model="filters.members" placeholder="Filtrar usuarios..."
                 class="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
         </div>
     </div>
-    
+
     <!-- Table Container -->
     <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[380px]">
-        
+
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-[10px] font-black text-gray-500 uppercase tracking-widest shrink-0">
+        <div
+            class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-[10px] font-black text-gray-500 uppercase tracking-widest shrink-0">
             <div class="w-8 text-center">
                 <input type="checkbox" class="rounded-sm border-gray-300 text-blue-600 focus:ring-0 h-3 w-3"
                     @change="toggleAllMembers($event.target.checked)">
@@ -29,36 +30,40 @@
 
         <!-- List -->
         <div class="flex-1 overflow-y-auto min-h-0">
-            <template x-for="user in filteredMembers" :key="user.id">
-                <label class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 cursor-pointer transition-colors">
+            <template x-for="user in filteredMembers" :key="user.username">
+                <label
+                    class="flex items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0 cursor-pointer transition-colors">
                     <div class="w-8 text-center flex-shrink-0">
-                         <input type="checkbox" :value="user.username" x-model="formData.members"
+                        <input type="checkbox" :value="user.username"
+                            :checked="formData.members.includes(user.username)"
+                            @change="if($event.target.checked) { if(!formData.members.includes(user.username)) formData.members.push(user.username) } else { formData.members = formData.members.filter(m => m !== user.username) }"
                             class="rounded-sm border-gray-300 text-blue-600 focus:ring-0 h-3 w-3">
                     </div>
-                    
+
                     <div class="flex-1 min-w-0 pr-4">
-                         <div class="text-xs font-bold text-gray-700" x-text="user.username"></div>
-                         <div class="text-[9px] text-gray-400 md:hidden truncate" x-text="user.description || user.email || '-'"></div>
+                        <div class="text-xs font-bold text-gray-700" x-text="user.username"></div>
+                        <div class="text-[9px] text-gray-400 md:hidden truncate"
+                            x-text="user.description || user.email || '-'"></div>
                     </div>
-                    
+
                     <div class="flex-1 min-w-0 pr-4 hidden md:block">
-                         <div class="text-[10px] text-gray-500 truncate" x-text="user.description || '-'"></div>
+                        <div class="text-[10px] text-gray-500 truncate" x-text="user.description || '-'"></div>
                     </div>
 
                     <div class="w-24 text-center hidden sm:block">
-                         <div class="text-[10px] text-gray-500 truncate" x-text="user.email || '-'"></div>
+                        <div class="text-[10px] text-gray-500 truncate" x-text="user.email || '-'"></div>
                     </div>
                 </label>
             </template>
-            
-             <template x-if="filteredMembers.length === 0">
+
+            <template x-if="filteredMembers.length === 0">
                 <div class="p-8 text-center">
                     <i class="fas fa-user-slash text-2xl text-gray-200 mb-2"></i>
                     <p class="text-[11px] text-gray-400 font-medium">No se encontraron usuarios</p>
                 </div>
             </template>
         </div>
-        
+
         <!-- Footer -->
         <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 shrink-0">
             <span class="text-[10px] text-gray-400 font-medium tracking-wide">

@@ -28,8 +28,33 @@ class GroupListView(LoginRequiredMixin, TemplateView):
     """
     Vista para listar grupos.
     Obtiene datos del NAS via GroupService.
+    Soporta respuesta JSON cuando se solicita con ?format=json
     """
     template_name = 'groups/group_list.html'
+    
+    def get(self, request, *args, **kwargs):
+        """Override get() to support JSON responses"""
+        # Check if JSON format is requested
+        if request.GET.get('format') == 'json':
+            try:
+                service = GroupService()
+                groups = service.list_groups()
+                
+                # Apply search filter if provided
+                search = request.GET.get('search', '').strip().lower()
+                if search:
+                    groups = [
+                        g for g in groups 
+                        if search in g.get('name', '').lower() or search in g.get('description', '').lower()
+                    ]
+                
+                return JsonResponse({'groups': groups})
+            except Exception as e:
+                logger.exception("Error listing groups")
+                return JsonResponse({'groups': [], 'error': str(e)}, status=500)
+        
+        # Default: render HTML template
+        return super().get(request, *args, **kwargs)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -144,22 +169,23 @@ class GroupWizardOptionsView(View):
 class GroupWizardAPIView(View):
     def post(self, request):
         try:
+            print(f"DEBUG: GroupWizardAPIView RECEIVED BODY: {request.body.decode('utf-8')}")
             data = json.loads(request.body)
             service = GroupService()
             
             # Identify mode (create/edit)
             mode = data.get('mode', 'create')
+            print(f"DEBUG: Processing mode: {mode}")
             
             if mode == 'create':
                 result = service.create_group(data)
             else:
-                # Update Logic
-                # result = service.update_group(data)
-                # For now create generic update method in service
                  result = service.update_group_wizard(data)
-                 
+            
+            print(f"DEBUG: Wizard Result: {json.dumps(result)}")
             return JsonResponse(result)
         except Exception as e:
+            logger.exception("GroupWizardAPIView Error")
             return JsonResponse({'success': False, 'message': str(e)})
 
 class GroupDetailView(View):
@@ -257,3 +283,4 @@ class GroupExportView(LoginRequiredMixin, View):
                      'Sí' if g.get('is_system') else 'No'
                  ])
             return response
+

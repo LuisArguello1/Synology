@@ -9,50 +9,54 @@
 
     <!-- Filter -->
     <div class="flex items-center justify-between">
-         <div class="relative w-full sm:w-64">
+        <div class="relative w-full sm:w-64">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
-            <input type="text" x-model="filters.shares" placeholder="Filtrar carpetas..." 
+            <input type="text" x-model="filters.shares" placeholder="Filtrar carpetas..."
                 class="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
         </div>
     </div>
-    
+
     <!-- Table Container -->
     <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[380px]">
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-[10px] font-black text-gray-500 uppercase tracking-widest shrink-0">
-             <div class="flex-1">Carpeta</div>
-             <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">L / E</div>
-             <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">S. L.</div>
-             <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">N. A.</div>
+        <div
+            class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-[10px] font-black text-gray-500 uppercase tracking-widest shrink-0">
+            <div class="flex-1">Carpeta</div>
+            <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">L / E</div>
+            <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">S. L.</div>
+            <div class="w-16 sm:w-24 flex-shrink-0 text-center px-1 leading-tight">N. A.</div>
         </div>
-        
+
         <!-- List -->
         <div class="flex-1 overflow-y-auto min-h-0 divide-y divide-gray-100">
-             <template x-for="share in filteredShares" :key="share.path">
+            <template x-for="share in filteredShares" :key="share.name">
                 <div class="flex items-center px-4 py-2 hover:bg-blue-50 transition-colors">
-                     
-                     <div class="flex-1 min-w-0 pr-4">
-                         <div class="text-xs font-bold text-gray-700" x-text="share.name"></div>
-                         <div class="text-[9px] text-gray-400 truncate" x-text="share.path"></div>
-                     </div>
 
-                     <!-- RW -->
-                     <div class="w-16 sm:w-24 flex justify-center">
-                         <input type="radio" :name="'perm_' + share.name" value="rw" x-model="formData.folder_permissions[share.name]"
+                    <div class="flex-1 min-w-0 pr-4">
+                        <div class="text-xs font-bold text-gray-700" x-text="share.name"></div>
+                        <div class="text-[9px] text-gray-400 truncate" x-text="share.path"></div>
+                    </div>
+
+                    <!-- RW -->
+                    <div class="w-16 sm:w-24 flex justify-center">
+                        <input type="radio" :name="'perm_' + share.name" value="rw"
+                            x-model="formData.folder_permissions[share.name]"
                             class="text-blue-600 focus:ring-blue-500 cursor-pointer h-3 w-3">
-                     </div>
-                     
-                     <!-- RO -->
-                     <div class="w-16 sm:w-24 flex justify-center">
-                         <input type="radio" :name="'perm_' + share.name" value="ro" x-model="formData.folder_permissions[share.name]"
+                    </div>
+
+                    <!-- RO -->
+                    <div class="w-16 sm:w-24 flex justify-center">
+                        <input type="radio" :name="'perm_' + share.name" value="ro"
+                            x-model="formData.folder_permissions[share.name]"
                             class="text-blue-600 focus:ring-blue-500 cursor-pointer h-3 w-3">
-                     </div>
-                     
-                      <!-- NA -->
-                     <div class="w-16 sm:w-24 flex justify-center">
-                         <input type="radio" :name="'perm_' + share.name" value="na" x-model="formData.folder_permissions[share.name]"
+                    </div>
+
+                    <!-- NA -->
+                    <div class="w-16 sm:w-24 flex justify-center">
+                        <input type="radio" :name="'perm_' + share.name" value="na"
+                            x-model="formData.folder_permissions[share.name]"
                             class="text-red-600 focus:ring-red-500 cursor-pointer h-3 w-3">
-                     </div>
+                    </div>
                 </div>
             </template>
         </div>

@@ -72,12 +72,18 @@ class ResourceService:
             response = self.connection.request('SYNO.Core.Share', 'list', version=1)
             if response.get('success'):
                 # Adaptamos la respuesta para que sea consistente
-                shares = response.get('data', {}).get('shares', [])
+                data = response.get('data', {})
+                shares_list = []
+                if isinstance(data, list):
+                    shares_list = data
+                elif isinstance(data, dict):
+                    shares_list = data.get('shares') or data.get('items') or data.get('datalist', [])
+                
                 return [{
                     'name': s.get('name'),
                     'path': s.get('path'),
-                    'description': s.get('desc', '')
-                } for s in shares]
+                    'description': s.get('desc', s.get('description', ''))
+                } for s in shares_list]
             return []
         except Exception as e:
             logger.exception("Error getting shared folders")
@@ -108,7 +114,13 @@ class ResourceService:
             logger.info(f"Volume API Response: {response}")
             
             if response.get('success'):
-                vols = response.get('data', {}).get('volumes', [])
+                data = response.get('data', {})
+                vols = []
+                if isinstance(data, list):
+                    vols = data
+                elif isinstance(data, dict):
+                    vols = data.get('volumes') or data.get('items') or data.get('datalist', [])
+                
                 logger.info(f"Found {len(vols)} volumes")
                 results = []
                 for v in vols:

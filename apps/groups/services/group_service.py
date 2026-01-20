@@ -76,12 +76,28 @@ class GroupService:
             )
             
             if response.get('success'):
-                # Adaptar campos si es necesario
-                groups = response.get('data', {}).get('groups', [])
-                for g in groups:
+                # Robustness: Handle different possible structures for 'data'
+                data = response.get('data', {})
+                groups_list = []
+                
+                if isinstance(data, list):
+                    groups_list = data
+                elif isinstance(data, dict):
+                    # Check common keys used by different DSM versions
+                    groups_list = data.get('groups') or data.get('items') or data.get('datalist', [])
+                    # If still not found but it's a dict, maybe the dict itself is the group? (unlikely for list)
+                
+                if not isinstance(groups_list, list):
+                    logger.warning(f"Unexpected groups format in API response: {type(groups_list)}")
+                    return []
+
+                for g in groups_list:
                      # Normalizar campos si la API devuelve diferentes nombres
-                     if 'desc' in g: g['description'] = g['desc']
-                return groups
+                     if 'group_name' in g and 'name' not in g: g['name'] = g['group_name']
+                     if 'desc' in g and 'description' not in g: g['description'] = g['desc']
+                
+                logger.info(f"Successfully listed {len(groups_list)} groups from NAS")
+                return groups_list
             
             logger.error(f"Error listing groups: {response}")
             return []
@@ -101,19 +117,108 @@ class GroupService:
             return group
 
         try:
+            print(f"DEBUG: Fetching group details for: {name}")
+            # La consulta básica para tener gid y descripción
             response = self.connection.request(
                 api='SYNO.Core.Group',
                 method='get',
                 version=1,
-                params={
-                    'name': name,
-                    'additional': '["members","perm","quota","speed_limit_up","speed_limit_down"]'
-                }
+                params={'name': name}
             )
             
             if response.get('success'):
-                groups = response.get('data', {}).get('groups', [])
-                return groups[0] if groups else None
+                data = response.get('data', {})
+                group_data = None
+                
+                if isinstance(data, dict):
+                    items = data.get('groups') or data.get('items')
+                    if items and isinstance(items, list):
+                        group_data = items[0]
+                    elif 'name' in data or 'group_name' in data:
+                        group_data = data
+                elif isinstance(data, list) and data:
+                    group_data = data[0]
+                
+                if group_data:
+                    # Normalización Básica
+                    if 'group_name' in group_data and 'name' not in group_data: group_data['name'] = group_data['group_name']
+                    if 'desc' in group_data and 'description' not in group_data: group_data['description'] = group_data['desc']
+                    
+                    # 1. MIEMBROS (Dedicated call)
+                    members = []
+                    try:
+                        m_resp = self.connection.request('SYNO.Core.Group.Member', 'list', version=1, params={'group': name})
+                        if m_resp.get('success'):
+                            m_data = m_resp.get('data', {})
+                            # DSM usa 'users' para los miembros del grupo
+                            members_raw = m_data.get('users') or m_data.get('members') or m_data.get('items') or []
+                            members = [m.get('name') if isinstance(m, dict) else str(m) for m in members_raw]
+                    except Exception as me:
+                        logger.error(f"Error fetching members: {me}")
+                    group_data['members'] = members
+
+                    # 2. PERMISOS DE CARPETAS (Fallback robusto)
+                    folder_perms = {}
+                    try:
+                        # Obtenemos lista de carpetas para consultar una por una o via detail si existe
+                        resource_service = ResourceService()
+                        shares = resource_service.get_shared_folders()
+                        for share in shares:
+                            share_name = share['name']
+                            p_resp = self.connection.request('SYNO.Core.Share.Permission', 'get', version=1, params={
+                                'name': name,
+                                'is_group': 'true',
+                                'path': f"/{share_name}"
+                            })
+                            if p_resp.get('success'):
+                                p_data = p_resp.get('data', {})
+                                folder_perms[share_name] = p_data.get('privilege', 'na')
+                    except Exception as pe:
+                        logger.error(f"Error fetching folder perms: {pe}")
+                    group_data['mapped_folder_permissions'] = folder_perms
+
+                    # 3. CUOTAS
+                    mapped_quotas = {}
+                    try:
+                        q_resp = self.connection.request('SYNO.Core.Quota', 'get', version=1, params={
+                            'name': name,
+                            'is_group': 'true'
+                        })
+                        if q_resp.get('success'):
+                            q_list = q_resp.get('data', {}).get('quotas', [])
+                            for q in q_list:
+                                vol_path = q.get('volume_path')
+                                limit = q.get('quota_limit', 0)
+                                mapped_quotas[vol_path] = {
+                                    'amount': limit,
+                                    'unit': 'MB',
+                                    'is_unlimited': (limit == 0)
+                                }
+                    except Exception as qe:
+                        logger.error(f"Error fetching quotas: {qe}")
+                    group_data['mapped_quotas'] = mapped_quotas
+
+                    # 4. PRIVILEGIOS DE APPS
+                    mapped_apps = {}
+                    try:
+                        # SYNO.Core.AppPriv:get suele devolver todos los privilegios del sujeto
+                        a_resp = self.connection.request('SYNO.Core.AppPriv', 'get', version=1, params={
+                            'name': name,
+                            'is_group': 'true'
+                        })
+                        if a_resp.get('success'):
+                            apps_data = a_resp.get('data', {}).get('apps', [])
+                            for app in apps_data:
+                                app_id = app.get('app')
+                                allowed = app.get('allow', False)
+                                mapped_apps[app_id] = 'allow' if allowed else 'deny'
+                    except Exception as ae:
+                        logger.error(f"Error fetching app perms: {ae}")
+                    group_data['mapped_app_permissions'] = mapped_apps
+                    
+                    print(f"DEBUG: Final data found: {json.dumps(group_data)}")
+                    return group_data
+                return None
             return None
             
         except Exception as e:
@@ -212,8 +317,65 @@ class GroupService:
         if has_updates:
             active_conn.request('SYNO.Core.Group', 'update', version=1, params=update_params)
 
+    def _sync_group_members(self, admin_conn, group_name, members_list):
+        """
+        Intenta sincronizar los miembros de un grupo probando varias estrategias de la API.
+        Muchas versiones de DSM son inconsistentes con los nombres de parámetros.
+        """
+        if members_list is None: return True
+        
+        print(f"DEBUG: Syncing members for {group_name}: {members_list}")
+        
+        # 1. Preparar formatos: CSV (Standard) y JSON (Algunas versiones modernas)
+        member_str = ",".join(members_list) if isinstance(members_list, list) else str(members_list)
+        member_json = json.dumps(members_list)
+        
+        # Estrategias de parámetros comunes
+        strategies = [
+            {'g': 'group', 'm': 'member',  'fmt': member_str},
+            {'g': 'group', 'm': 'members', 'fmt': member_str},
+            {'g': 'name',  'm': 'member',  'fmt': member_str},
+            {'g': 'name',  'm': 'members', 'fmt': member_str},
+            {'g': 'group', 'm': 'user',    'fmt': member_str},
+            {'g': 'group', 'm': 'users',   'fmt': member_str},
+            {'g': 'group', 'm': 'member',  'fmt': member_json},
+        ]
+        
+        # Intentamos 'set'
+        for s in strategies:
+            params = {s['g']: group_name, s['m']: s['fmt']}
+            print(f"DEBUG: Trial SYNO.Core.Group.Member:set ({s['g']}={group_name}, {s['m']}=...)")
+            resp = admin_conn.request('SYNO.Core.Group.Member', 'set', version=1, params=params)
+            if resp.get('success'):
+                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']}")
+                return True
+            else:
+                err = resp.get('error', {})
+                print(f"DEBUG: Trial failed: Code {err.get('code')} - {json.dumps(err)}")
+
+        # Intentamos 'add' como fallback
+        for s in strategies:
+             params = {s['g']: group_name, s['m']: s['fmt']}
+             print(f"DEBUG: Trial SYNO.Core.Group.Member:add ({s['g']}={group_name}, {s['m']}=...)")
+             resp = admin_conn.request('SYNO.Core.Group.Member', 'add', version=1, params=params)
+             if resp.get('success'):
+                 print(f"DEBUG: SUCCESS (add) with {s['g']}/{s['m']}")
+                 return True
+
+        # Último recurso: intentar 'update' del grupo con parámetro 'member' o 'members'
+        print("DEBUG: Trials exhausted. Attempting SYNO.Core.Group:update with member list...")
+        for s in [{'m': 'member'}, {'m': 'members'}, {'m': 'user'}]:
+            params = {'name': group_name, s['m']: member_str}
+            resp = admin_conn.request('SYNO.Core.Group', 'update', version=1, params=params)
+            if resp.get('success'):
+                 print(f"DEBUG: SUCCESS (Core.Group:update) with {s['m']}")
+                 return True
+
+        return False
+
     def create_group(self, data):
         """Orquestador de CREACIÓN con permisos administrativos"""
+        print(f"DEBUG: create_group RECEIVED DATA: {json.dumps(data)}")
         info = data.get('info', {})
         name = info.get('name') or data.get('name')
         
@@ -256,16 +418,21 @@ class GroupService:
                 'name': name,
                 'description': info.get('description', ''),
             }
-            if data.get('members'):
-                 params['members'] = json.dumps(data['members'])
-
+            
+            # Intentamos creación básica
             resp = admin_conn.request('SYNO.Core.Group', 'create', version=1, params=params)
+            print(f"DEBUG: SYNO.Core.Group:create for {name} resp: {json.dumps(resp)}")
             
             if not resp.get('success'):
                 error_code = resp.get('error', {}).get('code', 'Unknown')
                 return {'success': False, 'message': f"NAS Error: {error_code}"}
 
-            # 3. Aplicar configuraciones avanzadas
+            # 3. Gestionar Miembros (Usando nuestra función robusta)
+            members_list = data.get('members', [])
+            if members_list:
+                self._sync_group_members(admin_conn, name, members_list)
+
+            # 4. Aplicar configuraciones avanzadas
             self.apply_group_settings(name, data, conn=admin_conn)
             return {'success': True, 'message': 'Group created successfully'}
                  
@@ -278,6 +445,7 @@ class GroupService:
 
     def update_group_wizard(self, data):
         """Orquestador de ACTUALIZACIÓN con permisos administrativos"""
+        print(f"DEBUG: update_group_wizard RECEIVED DATA: {json.dumps(data)}")
         info = data.get('info', {})
         name = info.get('name') or data.get('name')
         
@@ -290,6 +458,7 @@ class GroupService:
         admin_conn = None
         current_sid = None
         try:
+            print(f"DEBUG: Updating group {name}")
             admin_conn = ConnectionService(self.config)
             auth_result = admin_conn.authenticate(session_alias='DSM')
             if not auth_result.get('success'):
@@ -297,15 +466,19 @@ class GroupService:
             
             current_sid = auth_result.get('sid')
 
-            # 1. Update Base Info & Members
+            # 1. Update Base Info
             params = {'name': name}
-            if info.get('description'): params['description'] = info['description']
-            if data.get('members') is not None:
-                params['members'] = json.dumps(data['members'])
+            if info.get('description') is not None: params['description'] = info['description']
+            
+            u_resp = admin_conn.request('SYNO.Core.Group', 'update', version=1, params=params)
+            print(f"DEBUG: SYNO.Core.Group:update resp: {json.dumps(u_resp)}")
 
-            admin_conn.request('SYNO.Core.Group', 'update', version=1, params=params)
+            # 2. Update Members (Usando nuestra función robusta)
+            members_list = data.get('members')
+            if members_list is not None:
+                self._sync_group_members(admin_conn, name, members_list)
 
-            # 2. Update Settings
+            # 3. Update Settings
             self.apply_group_settings(name, data, conn=admin_conn)
             return {'success': True, 'message': 'Group updated successfully'}
                  
@@ -332,13 +505,18 @@ class GroupService:
             user_service = UserService()
             raw_users = user_service.list_users()
             for u in raw_users:
-                 users.append({
-                    'username': u.get('name'),
+                username = u.get('name') or u.get('user_name') or ''
+                if not username:
+                    continue
+                    
+                users.append({
+                    'id': username,  # Added ID for Alpine.js :key compatibility
+                    'username': username,
                     'email': u.get('email', ''),
                     'description': u.get('description', '')
                 })
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error fetching users for wizard: {str(e)}")
         
         return {
             'shares': resource_service.get_shared_folders(),

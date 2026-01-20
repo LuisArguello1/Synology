@@ -1,24 +1,26 @@
 <div x-show="wizardOpen" style="display: none;" x-data="groupWizardLogic()"
     class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    
+
     <!-- Backdrop -->
-    <div x-show="wizardOpen" 
-        x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-        x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+    <div x-show="wizardOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
         class="fixed inset-0 bg-gray-900/75 transition-opacity z-[101]" @click="wizardOpen = false">
     </div>
 
     <!-- Modal Panel -->
     <div class="fixed inset-0 z-[102] flex items-center justify-center p-0 sm:p-4">
-        
-        <div class="bg-white sm:rounded-lg text-left shadow-2xl transform transition-all w-full h-full sm:h-[600px] sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row overflow-hidden min-h-0">
-            
+
+        <div
+            class="bg-white sm:rounded-lg text-left shadow-2xl transform transition-all w-full h-full sm:h-[600px] sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row overflow-hidden min-h-0">
+
             <!-- Mobile Header (Visible only on small screens) -->
             <div class="sm:hidden bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
                 <h3 class="text-sm font-bold truncate">
                     <span x-text="mode === 'create' ? 'Crear Grupo' : 'Editar Grupo'"></span>
                 </h3>
-                <span class="text-[10px] bg-blue-700 px-2 py-0.5 rounded-full" x-text="'Paso ' + currentStep + ' de 7'"></span>
+                <span class="text-[10px] bg-blue-700 px-2 py-0.5 rounded-full"
+                    x-text="'Paso ' + currentStep + ' de 7'"></span>
             </div>
 
             <!-- Left Sidebar (Stepper) -->
@@ -26,10 +28,10 @@
                 <h3 class="text-xs font-medium text-gray-600 mb-5 px-2 uppercase tracking-wide">
                     <span x-text="mode === 'create' ? 'Crear Nuevo Grupo' : 'Editar Grupo'"></span>
                 </h3>
-                
+
                 <nav class="space-y-1 flex-1">
                     <template x-for="(step, index) in steps" :key="index">
-                        <button :disabled="currentStep < index + 1" 
+                        <button :disabled="currentStep < index + 1" @click="currentStep = index + 1"
                             class="w-full group flex items-center px-2 py-2 text-xs font-medium rounded transition-colors"
                             :class="{ 
                                 'bg-blue-100 text-blue-700': currentStep === index + 1,
@@ -37,7 +39,7 @@
                                 'opacity-50 cursor-not-allowed': currentStep < index + 1
                              }">
                             <span class="w-5 h-5 flex items-center justify-center rounded-full border mr-2 text-[10px]"
-                                  :class="{
+                                :class="{
                                       'bg-blue-600 text-white border-blue-600': currentStep >= index + 1,
                                       'border-gray-300 text-gray-400': currentStep < index + 1
                                   }" x-text="index + 1">
@@ -50,7 +52,7 @@
 
             <!-- Right Content -->
             <div class="flex-1 flex flex-col bg-white overflow-hidden min-h-0">
-                
+
                 <!-- Main Content Area (Scrollable) -->
                 <div class="flex-1 p-4 sm:p-8 overflow-y-auto min-h-0">
                     <!-- Loading State -->
@@ -61,7 +63,7 @@
 
                     <!-- Steps Content -->
                     <div x-show="!loading">
-                        <form id="wizardForm">
+                        <form id="wizardForm" @submit.prevent="">
                             {% include "groups/wizard/step_1_info.html" %}
                             {% include "groups/wizard/step_2_members.html" %}
                             {% include "groups/wizard/step_3_permissions.html" %}
@@ -74,24 +76,25 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center shrink-0 z-50">
-                    <button @click="wizardOpen = false" type="button" 
+                <div
+                    class="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center shrink-0 z-50">
+                    <button @click="wizardOpen = false" type="button"
                         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 shadow-sm">
                         Cancelar
                     </button>
 
                     <div class="flex items-center gap-3">
-                        <button x-show="currentStep > 1" @click="prevStep()" type="button" 
+                        <button x-show="currentStep > 1" @click="prevStep()" type="button"
                             class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 shadow-sm">
                             Anterior
                         </button>
-                        
-                        <button x-show="currentStep < 7" @click="nextStep()" type="button" 
+
+                        <button x-show="currentStep < 7" @click="nextStep()" type="button"
                             class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 shadow-md">
                             Siguiente
                         </button>
-                        
-                        <button x-show="currentStep === 7" @click="submitWizard()" type="button" 
+
+                        <button x-show="currentStep === 7" @click="submitWizard()" type="button"
                             class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 shadow-md inline-flex items-center justify-center"
                             :disabled="submitting">
                             <span x-text="submitting ? 'Aplicando...' : 'Finalizado'"></span>
@@ -106,12 +109,12 @@
 <script>
     function groupWizardLogic() {
         return {
-            wizardOpen: false, 
+            wizardOpen: false,
             currentStep: 1,
             loading: false,
             submitting: false,
             mode: 'create', // create | edit
-            
+
             // Data sources
             options: {
                 users: [],
@@ -119,7 +122,7 @@
                 volumes: [],
                 apps: []
             },
-            
+
             // Form Model
             formData: {
                 info: { name: '', description: '', is_system: false },
@@ -133,14 +136,14 @@
                     'Rsync': { mode: 'unlimited', up: 0, down: 0 }
                 }
             },
-            
+
             // Filters
             filters: {
                 members: '',
                 shares: '',
                 apps: ''
             },
-            
+
             steps: [
                 { label: 'Información' },
                 { label: 'Miembros' },
@@ -153,24 +156,24 @@
 
             // Computed Filters
             get filteredMembers() {
-                if (!this.options.users) return [];
-                const q = this.filters.members.toLowerCase();
-                return this.options.users.filter(u => 
-                    u.username.toLowerCase().includes(q) || 
+                if (!this.options.users || !Array.isArray(this.options.users)) return [];
+                const q = (this.filters.members || '').toLowerCase();
+                return this.options.users.filter(u =>
+                    (u.username && u.username.toLowerCase().includes(q)) ||
                     (u.email && u.email.toLowerCase().includes(q))
                 );
             },
-            
+
             get filteredShares() {
-                if (!this.options.shares) return [];
-                const q = this.filters.shares.toLowerCase();
-                return this.options.shares.filter(s => s.name.toLowerCase().includes(q));
+                if (!this.options.shares || !Array.isArray(this.options.shares)) return [];
+                const q = (this.filters.shares || '').toLowerCase();
+                return this.options.shares.filter(s => (s.name || '').toLowerCase().includes(q));
             },
-            
+
             get filteredApps() {
-                if (!this.options.apps) return [];
-                const q = this.filters.apps.toLowerCase();
-                return this.options.apps.filter(a => a.name.toLowerCase().includes(q));
+                if (!this.options.apps || !Array.isArray(this.options.apps)) return [];
+                const q = (this.filters.apps || '').toLowerCase();
+                return this.options.apps.filter(a => (a.name || '').toLowerCase().includes(q));
             },
 
             init() {
@@ -187,22 +190,22 @@
                     // Current setup: "wizardOpen" is variable in parent scope?
                     // No, x-data="groupWizardLogic()" is on the modal div. 
                     // So we need to expose open method or listen to window event.
-                    
+
                     this.loading = true;
                     this.currentStep = 1;
                     this._resetForm();
-                    
+
                     // Fetch options first
                     this.fetchOptions().then(() => {
                         if (mode === 'edit' && groupName) {
-                            this.fetchGroupDetails(groupName); 
+                            this.fetchGroupDetails(groupName);
                         } else {
                             this.loading = false;
                         }
                     });
                 });
             },
-            
+
             _resetForm() {
                 this.formData = {
                     info: { name: '', description: '', is_system: false },
@@ -227,36 +230,43 @@
             },
 
             fetchOptions() {
-               // Load users, shares, volumes, apps
-               return fetch('{% url "groups:wizard_options" %}')
+                // Load users, shares, volumes, apps
+                return fetch('{% url "groups:wizard_options" %}')
                     .then(r => r.json())
                     .then(data => {
-                        this.options.users = data.users || []; // need to ensure API returns this
-                        this.options.shares = data.shares || [];
-                        this.options.volumes = data.volumes || [];
-                        this.options.apps = data.apps || [];
-                        
-                        // Initialize permissions dicts
-                        this.options.shares.forEach(s => {
-                             if(!this.formData.folder_permissions[s.name]) 
+                        // 1. Initialize data structures first (hidden from UI update)
+                        const shares = data.shares || [];
+                        const volumes = data.volumes || [];
+                        const apps = data.apps || [];
+
+                        shares.forEach(s => {
+                            if (!this.formData.folder_permissions[s.name])
                                 this.formData.folder_permissions[s.name] = 'na';
                         });
-                        
-                        // Initialize Quotas
-                        this.options.volumes.forEach(v => {
+
+                        volumes.forEach(v => {
+                            if (!this.formData.quotas) this.formData.quotas = {};
                             if (!this.formData.quotas[v.id]) {
                                 this.formData.quotas[v.id] = { amount: 0, unit: 'MB', is_unlimited: true };
                             }
                         });
-                        
-                        // Initialize Apps
-                        this.options.apps.forEach(a => {
+
+                        apps.forEach(a => {
                             if (!this.formData.app_permissions[a.name]) {
-                                this.formData.app_permissions[a.name] = 'deny'; // Default
+                                this.formData.app_permissions[a.name] = 'deny';
                             }
                         });
+
+                        // 2. Finally update options (triggers UI re-render)
+                        this.options.users = data.users || [];
+                        this.options.shares = shares;
+                        this.options.volumes = volumes;
+                        this.options.apps = apps;
                     })
-                    .catch(console.error);
+                    .catch(e => {
+                        console.error("Error fetching wizard options:", e);
+                        this.loading = false;
+                    });
             },
 
             fetchGroupDetails(name) {
@@ -264,53 +274,103 @@
                 fetch('{% url "groups:detail" name="placeholder"%}'.replace('placeholder', name))
                     .then(r => r.json())
                     .then(resp => {
-                        if(resp.success) {
+                        if (resp.success) {
                             const g = resp.data;
                             this.formData.info.name = g.name;
                             this.formData.info.description = g.description;
                             this.formData.info.is_system = g.is_system;
-                            // members
-                            this.formData.members = g.members.map(m => m.name || m); 
-                            // ... map other fields ...
+
+                            // 1. Members
+                            this.formData.members = (g.members || []).map(m => m.name || m);
+
+                            // 2. Folder Permissions
+                            if (g.mapped_folder_permissions) {
+                                Object.assign(this.formData.folder_permissions, g.mapped_folder_permissions);
+                            }
+
+                            // 3. Quotas
+                            if (g.mapped_quotas) {
+                                Object.keys(g.mapped_quotas).forEach(volId => {
+                                    if (this.formData.quotas[volId]) {
+                                        Object.assign(this.formData.quotas[volId], g.mapped_quotas[volId]);
+                                    } else {
+                                        this.formData.quotas[volId] = g.mapped_quotas[volId];
+                                    }
+                                });
+                            }
+
+                            // 4. App Permissions
+                            if (g.mapped_app_permissions) {
+                                Object.assign(this.formData.app_permissions, g.mapped_app_permissions);
+                            }
                         }
                     })
                     .finally(() => this.loading = false);
             },
 
             nextStep() {
-                if(this.currentStep === 1 && !this.formData.info.name) {
+                if (this.currentStep === 1 && !this.formData.info.name) {
                     Swal.fire('Error', 'El nombre es obligatorio', 'error');
                     return;
                 }
-                if(this.currentStep < 7) this.currentStep++;
+                console.log("DEBUG: Moving to next step. Current formData:", JSON.parse(JSON.stringify(this.formData)));
+                if (this.currentStep < 7) this.currentStep++;
             },
-            
+
             prevStep() {
-                if(this.currentStep > 1) this.currentStep--;
+                if (this.currentStep > 1) this.currentStep--;
             },
 
             submitWizard() {
-                this.submitting = true;
-                const payload = { ...this.formData, mode: this.mode };
-                
-                fetch('{% url "groups:wizard_api" %}', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(r => r.json())
-                .then(resp => {
-                    if(resp.success) {
-                         Swal.fire('Guardado', 'Grupo guardado correctamente', 'success')
-                            .then(() => window.location.reload());
-                    } else {
-                        Swal.fire('Error', resp.message || 'Error desconocido', 'error');
+                // Deep clone and prepare payload
+                const payload = JSON.parse(JSON.stringify({ ...this.formData, mode: this.mode }));
+                const memberCount = (payload.members || []).length;
+                const folderCount = Object.keys(payload.folder_permissions || {}).filter(k => payload.folder_permissions[k] !== 'na').length;
+                const quotaCount = Object.keys(payload.quotas || {}).filter(k => !payload.quotas[k].is_unlimited).length;
+
+                const summary = `
+                    Modo: ${this.mode.toUpperCase()}
+                    Miembros seleccionados: ${memberCount}
+                    Favoritas/Permisos: ${folderCount} carpetas con permisos específicos.
+                    Cuotas: ${quotaCount} volúmenes con cuota.
+                `;
+
+                Swal.fire({
+                    title: '¿Confirmar cambios?',
+                    text: summary,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, Guardar',
+                    cancelButtonText: 'Revisar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.submitting = true;
+                        console.log("DEBUG: Final Submission Payload:", payload);
+
+                        fetch('{% url "groups:wizard_api" %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify(payload)
+                        })
+                            .then(r => r.json())
+                            .then(resp => {
+                                if (resp.success) {
+                                    Swal.fire('Guardado', 'Grupo guardado correctamente', 'success')
+                                        .then(() => window.location.reload());
+                                } else {
+                                    Swal.fire('Error', resp.message || 'Error desconocido', 'error');
+                                }
+                            })
+                            .catch(err => {
+                                console.error("DEBUG: Submit Error:", err);
+                                Swal.fire('Error de red', err.message, 'error');
+                            })
+                            .finally(() => this.submitting = false);
                     }
-                })
-                .finally(() => this.submitting = false);
+                });
             }
         }
     }
