@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         
@@ -172,11 +173,24 @@
                     </div>
                     
                     <!-- Campo Password -->
-                    <div>
+                    <div x-data="{ show: false }">
                         <label for="{{ form.password.id_for_label }}" class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                             {{ form.password.label }}
                         </label>
-                        {{ form.password }}
+                        <div class="relative">
+                            <input :type="show ? 'text' : 'password'" 
+                                   name="{{ form.password.name }}"
+                                   id="{{ form.password.id_for_label }}"
+                                   autocomplete="current-password"
+                                   required
+                                   class="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-colors pr-8"
+                                   placeholder="Contraseña">
+                            <button type="button" 
+                                    @click="show = !show"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors focus:outline-none">
+                                <i class="fas text-[10px]" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+                            </button>
+                        </div>
                         {% if form.password.errors %}
                             <p class="text-xs text-red-600 mt-1.5 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1"></i>

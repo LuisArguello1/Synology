@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from django.conf import settings
 from apps.settings.services.connection_service import ConnectionService
 from apps.settings.models import NASConfig
@@ -12,13 +13,41 @@ class UserService:
     Interactúa directamente con SYNO.Core.*
     """
     
-    def __init__(self):
+    def __init__(self, session='FileStation'):
         self.config = NASConfig.get_active_config()
         self.connection = ConnectionService(self.config)
         # En modo offline, no necesitamos autenticar
         if not getattr(settings, 'NAS_OFFLINE_MODE', False):
             # Autenticar automáticamente para tener SID disponible en todas las llamadas
-            self.connection.authenticate()
+            self.connection.authenticate(session_alias=session)
+
+    def _validate_user_data(self, data, mode='create'):
+        """Validación interna de robustez"""
+        info = data.get('info', {})
+        username = info.get('name', '').strip()
+        email = info.get('email', '').strip()
+        password = info.get('password', '')
+
+        # 1. Username
+        if not username:
+            return False, "El nombre de usuario es requerido"
+        
+        reserved = ['admin', 'guest']
+        if username.lower() in reserved:
+            return False, f"El nombre '{username}' es un nombre reservado en Synology"
+
+        if not re.match(r'^[a-zA-Z0-9_\-\.]{1,64}$', username):
+            return False, "El nombre de usuario contiene caracteres no permitidos"
+
+        # 2. Email
+        if email and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+            return False, "El formato del correo electrónico es inválido"
+
+        # 3. Password (solo en creación)
+        if mode == 'create' and not password:
+            return False, "La contraseña es requerida para nuevos usuarios"
+
+        return True, None
         
     def list_users(self, limit=50, offset=0):
         """
@@ -91,16 +120,20 @@ class UserService:
             logger.exception(f"Error getting user {name}")
             return None
 
-    def delete_user(self, name):
+    def delete_user(self, names):
         """
-        Elimina un usuario.
+        Elimina uno o varios usuarios.
         API: SYNO.Core.User method=delete
         """
+        # Synology permite nombres separados por coma para borrado en lote
+        if isinstance(names, list):
+            names = ",".join(names)
+            
         return self.connection.request(
             api='SYNO.Core.User',
             method='delete',
             version=1,
-            params={'name': name}
+            params={'name': names}
         )
 
     def get_wizard_options(self):
@@ -178,11 +211,12 @@ class UserService:
             
         return options
 
-    def apply_user_settings(self, username, data, results):
+    def apply_user_settings(self, username, data, results, conn=None):
         """
         Aplica configuraciones complejas (Grupos, Cuotas, Apps, Speed) a un usuario existente.
         Centraliza la lógica para Reutilización en Create y Update.
         """
+        active_conn = conn or self.connection
         info = data.get('info', {})
         update_params = {'name': username}
         has_updates = False
@@ -221,7 +255,7 @@ class UserService:
                 results['errors'].append(f"Permission errors: {perm_errors}")
 
         # 3. Cuotas
-        if 'quota' in data and data['quota']:
+        if 'quota' in data and isinstance(data['quota'], dict):
             quota_list = []
             for vol_path, q_data in data['quota'].items():
                 try:
@@ -237,7 +271,7 @@ class UserService:
                 has_updates = True
 
         # 4. Aplicaciones
-        if 'apps' in data:
+        if 'apps' in data and isinstance(data['apps'], dict):
             app_list = []
             # 'apps' suele venir como dict { 'app_id': 'allow'/'deny' }
             for app_id, user_setting in data['apps'].items():
@@ -253,7 +287,7 @@ class UserService:
                 has_updates = True
         
         # 5. Límites de Velocidad
-        if 'speed' in data and data['speed']:
+        if 'speed' in data and isinstance(data['speed'], dict):
             speed_rules = []
             service_map = {'File Station': 'file_station', 'FTP': 'ftp', 'Rsync': 'rsync'}
             
@@ -291,7 +325,7 @@ class UserService:
         # Ejecutar update consolidado en el NAS
         if has_updates:
             try:
-                resp_up = self.connection.request('SYNO.Core.User', 'update', version=1, params=update_params)
+                resp_up = active_conn.request('SYNO.Core.User', 'update', version=1, params=update_params)
                 if resp_up.get('success'): 
                     results['steps'].append('Advanced Settings Applied')
                 else: 
@@ -304,6 +338,10 @@ class UserService:
     def create_user_wizard(self, data):
         """Orquestador de CREACIÓN"""
         results = {'success': False, 'steps': [], 'errors': []}
+
+        valid, error_msg = self._validate_user_data(data, mode='create')
+        if not valid:
+            return {'success': False, 'message': error_msg}
         info = data.get('info', {})
         username = info.get('name')
         
@@ -317,7 +355,8 @@ class UserService:
             # que podrían causar problemas de validación o permisos
             params = {
                 'name': username,
-                'password': info['password']
+                'password': info['password'],
+                'action': 'create' # 💡 Agregado por solicitud del usuario
             }
             
             # Solo agregar campos opcionales si tienen valor
@@ -384,6 +423,9 @@ class UserService:
                 return {'success': False, 'message': error_msg}
                 
             results['steps'].append('User Created')
+
+            # Paso 2: Aplicar configuraciones avanzadas (DENTRO del bloque admin)
+            self.apply_user_settings(username, data, results, conn=admin_conn)
             
         except Exception as e:
             logger.exception(f"Exception creating user: {str(e)}")
@@ -394,9 +436,7 @@ class UserService:
                 logger.info("Closing admin session...")
                 admin_conn.logout(current_sid)
 
-        # Paso 2: Aplicar configuraciones avanzadas
-        self.apply_user_settings(username, data, results)
-        
+        # Paso 3: Evaluar éxito global
         results['success'] = len(results['errors']) == 0
         if not results['success']:
              results['message'] = f"User created but some settings failed: {'; '.join(results['errors'])}"
@@ -408,6 +448,11 @@ class UserService:
     def update_user_wizard(self, data):
         """Orquestador de ACTUALIZACIÓN"""
         results = {'success': False, 'steps': [], 'errors': []}
+
+        valid, error_msg = self._validate_user_data(data, mode='edit')
+        if not valid:
+            return {'success': False, 'message': error_msg}
+
         info = data.get('info', {})
         username = info.get('name')
         
@@ -428,8 +473,14 @@ class UserService:
         except Exception as e:
             results['errors'].append(f"Update info exception: {str(e)}")
 
-        # Paso 2: Aplicar configuraciones avanzadas
-        self.apply_user_settings(username, data, results)
+        # Paso 2: Aplicar configuraciones avanzadas (Requiere DSM session para update/quota/groups)
+        admin_conn = ConnectionService(self.config)
+        admin_conn.authenticate(session_alias='DSM')
+        try:
+            self.apply_user_settings(username, data, results, conn=admin_conn)
+        finally:
+            if admin_conn.get_sid():
+                admin_conn.logout(admin_conn.get_sid())
         
         results['success'] = len(results['errors']) == 0
         if not results['success']:

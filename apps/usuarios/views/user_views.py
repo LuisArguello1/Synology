@@ -43,6 +43,14 @@ class UserListView(LoginRequiredMixin, TemplateView):
         context['users'] = page_obj # La vista itera sobre page_obj
         context['page_obj'] = page_obj
         
+        # Para Alpine.js (Búsqueda y Selección)
+        context['users_json'] = json.dumps([{
+            'name': u['name'],
+            'email': u.get('email', ''),
+            'description': u.get('description', ''),
+            'expired': u.get('expired', 'false')
+        } for n, u in enumerate(all_users)])
+        
         return context
 
 class UserWizardDataView(LoginRequiredMixin, View):
@@ -107,19 +115,33 @@ class UserDeleteView(LoginRequiredMixin, View):
     """
     def post(self, request, username):
         service = UserService()
-        result = service.delete_user(username)
+        
+        # Si username es 'batch', buscar en el body
+        if username == 'batch':
+            try:
+                data = json.loads(request.body)
+                usernames = data.get('usernames', [])
+                if not usernames:
+                    return JsonResponse({'success': False, 'message': 'No se seleccionaron usuarios'})
+            except:
+                return JsonResponse({'success': False, 'message': 'Invalid data'})
+        else:
+            usernames = [username]
+
+        result = service.delete_user(usernames)
         success = result.get('success', False)
         error = result.get('error', {})
         
         if success:
             # LOG AUDITORIA
             from apps.auditoria.services.audit_service import AuditService
+            desc = f"Usuarios eliminados: {', '.join(usernames)}" if len(usernames) > 1 else f"Usuario '{usernames[0]}' eliminado."
             AuditService.log(
                 action='DELETE_USER',
-                description=f"Usuario '{username}' eliminado.",
+                description=desc,
                 user=request.user,
                 request=request,
-                details={'deleted_user': username}
+                details={'deleted_users': usernames}
             )
 
         return JsonResponse({

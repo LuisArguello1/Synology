@@ -10,61 +10,66 @@
         </button>
     </div>
     
-    <div class="bg-white border border-gray-200 rounded overflow-hidden flex flex-col h-[300px]">
+    <div class="bg-white border border-gray-200 rounded flex flex-col h-[300px] overflow-hidden">
         <!-- Header -->
-        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase">
-            <div class="w-28">Servicio</div>
-            <div class="w-28 text-center">Resultado</div>
-            <div class="flex-1 text-center">Límite de velocidad</div>
-            <div class="w-28 text-center">Límite de car...</div>
-            <div class="w-28 text-center">Límite de des...</div>
+        <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center text-xs font-semibold text-gray-600 uppercase sticky top-0 z-10 shrink-0">
+            <div class="min-w-[600px] flex items-center w-full">
+                <div class="w-28 text-left">Servicio</div>
+                <div class="w-28 text-center">Resultado</div>
+                <div class="flex-1 text-center">Límite de velocidad</div>
+                <div class="w-28 text-center">Límite de car...</div>
+                <div class="w-28 text-center">Límite de des...</div>
+            </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
-             <template x-for="service in ['File Station', 'FTP', 'Rsync']" :key="service">
-                <div class="flex items-center px-4 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors">
-                    
-                    <!-- Service Name -->
-                    <div class="w-28 text-sm text-gray-800" x-text="service"></div>
+        <!-- Scrollable List Content -->
+        <div class="flex-1 overflow-auto">
+            <div class="min-w-[600px] divide-y divide-gray-100">
+                <template x-for="service in ['File Station', 'FTP', 'Rsync']" :key="service">
+                    <div class="flex items-center px-4 py-2.5 hover:bg-blue-50 transition-colors">
+                        
+                        <!-- Service Name -->
+                        <div class="w-28 text-sm text-gray-800" x-text="service"></div>
 
-                    <!-- Resultado -->
-                    <div class="w-28 text-center text-xs text-gray-500">
-                        <span x-text="formData.speed[service]?.mode === 'limit' ? (formData.speed[service].up + '/' + formData.speed[service].down) : 'Sin límite / Sin...'"></span>
-                    </div>
+                        <!-- Resultado -->
+                        <div class="w-28 text-center text-xs text-gray-500">
+                            <span x-text="formData.speed[service]?.mode === 'limit' ? (formData.speed[service].up + '/' + formData.speed[service].down) : 'Sin límite / Sin...'"></span>
+                        </div>
 
-                    <!-- Límite de velocidad (Dropdown) -->
-                    <div class="flex-1 px-2">
-                        <select x-model="formData.speed[service].mode" 
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                            <option value="group">Aplicar configuración de ...</option>
-                            <option value="limit">Configurar límite de velocidad</option>
-                            <option value="unlimited">Sin límite</option>
-                        </select>
-                    </div>
+                        <!-- Límite de velocidad (Dropdown) -->
+                        <div class="flex-1 px-2">
+                            <select x-model="formData.speed[service].mode" 
+                                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                <option value="group">Aplicar configuración de ...</option>
+                                <option value="limit">Configurar límite de velocidad</option>
+                                <option value="unlimited">Sin límite</option>
+                            </select>
+                        </div>
 
-                    <!-- Upload -->
-                    <div class="w-28 flex items-center justify-center">
-                        <input type="number" 
-                               x-model="formData.speed[service].up"
-                               :disabled="formData.speed[service].mode !== 'limit'"
-                               placeholder="-"
-                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
-                    </div>
+                        <!-- Upload -->
+                        <div class="w-28 flex items-center justify-center">
+                            <input type="number" min="0"
+                                   x-model="formData.speed[service].up"
+                                   :disabled="formData.speed[service].mode !== 'limit'"
+                                   placeholder="-"
+                                   class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                        </div>
 
-                    <!-- Download -->
-                    <div class="w-28 flex items-center justify-center">
-                         <input type="number" 
-                               x-model="formData.speed[service].down"
-                               :disabled="formData.speed[service].mode !== 'limit'"
-                               placeholder="-"
-                               class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                        <!-- Download -->
+                        <div class="w-28 flex items-center justify-center">
+                             <input type="number" min="0"
+                                   x-model="formData.speed[service].down"
+                                   :disabled="formData.speed[service].mode !== 'limit'"
+                                   placeholder="-"
+                                   class="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
+                        </div>
                     </div>
-                </div>
-             </template>
+                </template>
+            </div>
         </div>
         
         <!-- Footer -->
-        <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2">
+        <div class="bg-gray-50 border-t border-gray-200 px-4 py-2 flex justify-end items-center gap-2 shrink-0">
             <span class="text-xs text-gray-500">3 elementos</span>
             <button type="button" class="text-gray-400 hover:text-gray-600">
                 <i class="fas fa-sync-alt text-xs"></i>

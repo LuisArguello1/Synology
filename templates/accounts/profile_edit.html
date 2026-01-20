@@ -116,12 +116,22 @@
                 
                 <div class="space-y-5 mt-6">
                     <!-- Password -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start" x-data="{ show: false }">
                         <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
                             {{ form.password.label }}
                         </label>
-                        <div class="sm:col-span-2">
-                            {{ form.password }}
+                        <div class="sm:col-span-2 relative">
+                            <div class="relative">
+                                <input :type="show ? 'text' : 'password'"
+                                       name="{{ form.password.name }}"
+                                       id="{{ form.password.id_for_label }}"
+                                       class="pr-10">
+                                <button type="button"
+                                        @click="show = !show"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors focus:outline-none">
+                                    <i class="fas text-[12px]" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                            </div>
                             {% if form.password.help_text %}
                                 <p class="mt-1.5 text-xs text-gray-500">{{ form.password.help_text }}</p>
                             {% else %}
@@ -139,12 +149,22 @@
                     </div>
 
                     <!-- Confirm Password -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start" x-data="{ show: false }">
                         <label for="{{ form.confirm_password.id_for_label }}" class="block text-sm font-medium text-gray-700 sm:mt-2">
                             {{ form.confirm_password.label }}
                         </label>
-                        <div class="sm:col-span-2">
-                            {{ form.confirm_password }}
+                        <div class="sm:col-span-2 relative">
+                            <div class="relative">
+                                <input :type="show ? 'text' : 'password'"
+                                       name="{{ form.confirm_password.name }}"
+                                       id="{{ form.confirm_password.id_for_label }}"
+                                       class="pr-10">
+                                <button type="button"
+                                        @click="show = !show"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors focus:outline-none">
+                                    <i class="fas text-[12px]" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                            </div>
                             {% if form.confirm_password.help_text %}
                                 <p class="mt-1.5 text-xs text-gray-500">{{ form.confirm_password.help_text }}</p>
                             {% endif %}

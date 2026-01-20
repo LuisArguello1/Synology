@@ -1,0 +1,43 @@
+================================================================================
+RUTAS DE API PARA GESTIÓN DE USUARIOS (EXTRAS DE info_api_nas.txt)
+================================================================================
+
+Basado en el descubrimiento de APIs del NAS (info_api_nas.txt), las rutas 
+oficiales para la gestión de usuarios son las siguientes:
+
+1. AUTENTICACIÓN (Login/Logout)
+   - API: SYNO.API.Auth
+   - Path: /webapi/entry.cgi (v1 a v7)
+
+2. GESTIÓN DE USUARIOS (Crear, Listar, Eliminar, Info)
+   - API: SYNO.Core.User
+   - Path: /webapi/entry.cgi (v1)
+   - Nota: Se sugiere /webapi/usergroup.cgi para 'action=create' como alternativa 
+     legacy o específica si entry.cgi falla con 105.
+
+3. GESTIÓN DE GRUPOS
+   - API: SYNO.Core.Group
+   - Path: /webapi/entry.cgi (v1)
+
+4. PERMISOS DE CARPETAS
+   - API: SYNO.Core.Share.Permission
+   - Path: /webapi/entry.cgi (v1)
+
+5. CUOTAS DE ALMACENAMIENTO
+   - API: SYNO.Core.Quota
+   - Path: /webapi/entry.cgi (v1)
+
+6. PRIVILEGIOS DE APLICACIONES
+   - API: SYNO.Core.AppPriv.App
+   - Path: /webapi/entry.cgi (v1 a v3)
+
+7. LÍMITES DE VELOCIDAD
+   - API: SYNO.Core.BandwidthControl
+   - Path: /webapi/entry.cgi (v1 a v2)
+
+================================================================================
+IMPORTANTE PARA EL DESARROLLO:
+- Siempre usar POST para acciones de escritura (create, update, delete).
+- Pasar el parámetro '_sid' en la Query String (URL) para evitar Error 105 en DSM 6+.
+- Asegurar que la sesión sea de tipo 'DSM' para operaciones administrativas.
+================================================================================

@@ -552,9 +552,6 @@ async function editRsyncAccount() {
 
     if (formValues) {
         try {
-            // TODO: BACKEND PENDIENTE - Crear endpoint /servicios-archivos/api/rsync/account/update/
-            // TODO: Implementar get_rsync_account() y set_rsync_account() en file_services_service.py
-            // TODO: Investigar API: SYNO.Core.FileServ.Rsync.Account
             const response = await fetch('/servicios-archivos/api/rsync/account/update/', {
                 method: 'POST',
                 headers: {
@@ -565,7 +562,11 @@ async function editRsyncAccount() {
             });
 
             const result = await response.json();
-            showMessage(result.message || 'Cuenta rsync actualizada', 'success');
+            if (result.success) {
+                showMessage(result.message || 'Cuenta rsync actualizada', 'success');
+            } else {
+                showMessage(result.message || 'Error al actualizar cuenta', 'error');
+            }
         } catch (error) {
             // ESTADO ACTUAL: Endpoint no existe, solo guarda en consola
             console.log('⚠️ Modo offline - Cuenta rsync:', formValues);

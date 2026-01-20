@@ -16,11 +16,12 @@ class FileServicesService:
     Interactúa con las APIs correspondientes.
     """
     
-    def __init__(self):
+    def __init__(self, session='FileStation'):
         self.config = NASConfig.get_active_config()
         self.offline_mode = getattr(settings, 'NAS_OFFLINE_MODE', False)
         if not self.offline_mode and self.config:
             self.connection = ConnectionService(self.config)
+            self.connection.authenticate(session_alias=session)
         else:
             self.connection = None
     
@@ -52,7 +53,7 @@ class FileServicesService:
             result = self.connection.request(
                 api='SYNO.Core.FileServ.SMB',
                 method='get',
-                version=2
+                version=3
             )
             return {'success': True, 'data': result.get('data', {})}
         except Exception as e:
@@ -68,12 +69,18 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración SMB actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+                
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.SMB',
                 method='set',
-                version=2,
+                version=3,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración SMB actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config SMB: {e}")
@@ -119,12 +126,18 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración AFP actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.AFP',
                 method='set',
                 version=2,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración AFP actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config AFP: {e}")
@@ -154,7 +167,7 @@ class FileServicesService:
             result = self.connection.request(
                 api='SYNO.Core.FileServ.NFS',
                 method='get',
-                version=2
+                version=3
             )
             return {'success': True, 'data': result.get('data', {})}
         except Exception as e:
@@ -170,12 +183,18 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración NFS actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.NFS',
                 method='set',
-                version=2,
+                version=3,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración NFS actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config NFS: {e}")
@@ -228,12 +247,18 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración FTP actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.FTP',
                 method='set',
                 version=3,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración FTP actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config FTP: {e}")
@@ -280,12 +305,18 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración rsync actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.Rsync',
                 method='set',
                 version=1,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración rsync actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config rsync: {e}")
@@ -335,17 +366,76 @@ class FileServicesService:
             return {'success': True, 'message': 'Configuración avanzada actualizada (modo offline)'}
         
         try:
-            result = self.connection.request(
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar sesión administrativa'}
+
+            result = admin_conn.request(
                 api='SYNO.Core.FileServ.Advanced',
                 method='set',
                 version=1,
                 params=data
             )
+            admin_conn.logout(auth.get('sid'))
             return {'success': True, 'message': 'Configuración avanzada actualizada correctamente'}
         except Exception as e:
             logger.error(f"Error actualizando config avanzada: {e}")
             return {'success': False, 'message': str(e)}
     
+    # =============================================================================
+    # RSYNC ACCOUNT
+    # =============================================================================
+    
+    def get_rsync_account(self):
+        """
+        Obtiene la cuenta rsync configurada.
+        """
+        if self.offline_mode:
+            return {'success': True, 'username': 'rsync_backup'}
+            
+        try:
+            result = self.connection.request(
+                api='SYNO.Core.FileServ.Rsync.Account',
+                method='get',
+                version=1
+            )
+            data = result.get('data', {})
+            return {
+                'success': True, 
+                'username': data.get('username', ''),
+            }
+        except Exception as e:
+            return {'success': False, 'message': str(e)}
+
+    def set_rsync_account(self, data):
+        """
+        Actualiza la cuenta rsync.
+        """
+        if self.offline_mode:
+            return {'success': True, 'message': 'Cuenta rsync actualizada (offline)'}
+            
+        try:
+            admin_conn = ConnectionService(self.config)
+            auth = admin_conn.authenticate(session_alias='DSM')
+            if not auth.get('success'):
+                return {'success': False, 'message': 'Fallo al autenticar'}
+
+            params = {'username': data.get('username')}
+            if data.get('password'):
+                params['password'] = data.get('password')
+
+            result = admin_conn.request(
+                api='SYNO.Core.FileServ.Rsync.Account',
+                method='set',
+                version=1,
+                params=params
+            )
+            admin_conn.logout(auth.get('sid'))
+            return {'success': True, 'message': 'Cuenta rsync actualizada correctamente'}
+        except Exception as e:
+            return {'success': False, 'message': str(e)}
+
     # =============================================================================
     # UTILITY METHODS
     # =============================================================================

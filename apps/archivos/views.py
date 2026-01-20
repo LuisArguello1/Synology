@@ -1,6 +1,6 @@
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
@@ -128,4 +128,39 @@ class FileUploadView(LoginRequiredMixin, View):
                 
         except Exception as e:
             logger.exception("Upload Error")
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+class FileDownloadView(LoginRequiredMixin, View):
+    """
+    Proxy para descargar o visualizar archivos desde el NAS.
+    """
+    def get(self, request):
+        path = request.GET.get('path')
+        if not path:
+            return JsonResponse({'success': False, 'message': 'Path is required'}, status=400)
+        
+        try:
+            service = FileService()
+            stream_res, error = service.get_file_stream(path)
+            
+            if error:
+                return JsonResponse({'success': False, 'message': error}, status=400)
+            
+            # Preparar la respuesta de streaming
+            filename = path.split('/')[-1]
+            response = StreamingHttpResponse(
+                stream_res.iter_content(chunk_size=8192),
+                content_type=stream_res.headers.get('Content-Type')
+            )
+            
+            # Si el usuario quiere forzar descarga, o para tipos no visualizables
+            if 'download' in request.GET:
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            else:
+                response['Content-Disposition'] = f'inline; filename="{filename}"'
+                
+            return response
+            
+        except Exception as e:
+            logger.exception("Download Proxy Error")
             return JsonResponse({'success': False, 'message': str(e)}, status=500)

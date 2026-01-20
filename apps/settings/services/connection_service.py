@@ -275,39 +275,44 @@ class ConnectionService:
             # 2. Construir URL base
             url = f"{self.get_base_url()}/webapi/{path}"
             
-            # 3. Preparar parámetros base
-            payload = {
+            # 3. Preparar parámetros de control (siempre en la URL para mayor compatibilidad)
+            control_params = {
                 'api': api,
                 'version': version,
-                'method': method,
-                **params # Merge con params del usuario
+                'method': method
             }
             
             # 4. Inyectar SID (Prioridad: Argumento > self._sid)
             active_sid = sid or getattr(self, '_sid', None)
             if active_sid:
-                payload['_sid'] = active_sid
+                control_params['_sid'] = active_sid
                 
             # 5. Ejecutar Request
             # Nota: Synology suele aceptar todo por GET o POST. 
-            # Usamos POST por defecto para acciones que modifiquen datos por seguridad/longitud,
-            # pero GET también es muy comun.
-            # Para 'list' o 'get' info, GET es mejor. Para create/update, POST.
-            # Decisión: GET por defecto para lectura, POST si params son largos?
-            # Simplificación: requests.post suele funcionar universalmente en Synology APIs excepto Auth.
+            # Sin embargo, para peticiones que modifican datos (POST), es más robusto 
+            # pasar los parámetros de control (api, version, method, _sid) en el query string 
+            # y los parámetros de datos en el cuerpo (form-data).
             if method in ['query', 'list', 'get']:
-                resp = requests.get(url, params=payload, timeout=30, verify=False)
+                # En GET, todo va en la URL
+                all_params = {**control_params, **params}
+                resp = requests.get(url, params=all_params, timeout=30, verify=False)
             else:
-                resp = requests.post(url, data=payload, timeout=30, verify=False)
+                # En POST, control en URL, data en BODY
+                resp = requests.post(url, params=control_params, data=params, timeout=30, verify=False)
                 
             # 6. Procesar respuesta
             if resp.status_code == 200:
                 try:
-                    return resp.json()
+                    data = resp.json()
+                    # Log detallado de errores para depuración (solo si no es exitoso)
+                    if not data.get('success'):
+                        logger.warning(f"NAS API Error in {api}/{method}: {data}")
+                    return data
                 except ValueError:
                     return {'success': False, 'message': 'Invalid JSON response', 'raw': resp.text}
             else:
-                return {'success': False, 'http_code': resp.status_code, 'message': 'HTTP Error'}
+                logger.error(f"HTTP Error {resp.status_code} in {api}/{method}: {resp.text}")
+                return {'success': False, 'http_code': resp.status_code, 'message': f'HTTP Error {resp.status_code}'}
 
         except Exception as e:
             logger.error(f"Error in ConnectionService.request({api}, {method}): {e}")
