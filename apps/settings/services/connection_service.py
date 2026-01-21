@@ -181,10 +181,11 @@ class ConnectionService:
             logger.info("OFFLINE MODE: Simulating authentication success")
             fake_sid = 'OFFLINE_MODE_SID_12345'
             self._sid = fake_sid
+            self._synotoken = 'OFFLINE_MODE_TOKEN_12345'
             return {
                 'success': True,
                 'sid': fake_sid,
-                'synotoken': '',
+                'synotoken': self._synotoken,
                 'did': ''
             }
 
@@ -195,13 +196,10 @@ class ConnectionService:
             max_ver = auth_info.get('maxVersion', 3)
             
             # Utilizar la versión máxima disponible para Auth
-            # Versiones antiguas (v2/v3) pueden crear sesiones con permisos limitados
-            # Especialmente para sesiones 'DSM'
             use_version = max_ver
             
-            # Si max_ver es muy alto (ej 7) y hay problemas, podríamos limitar, 
-            # pero probemos con la más alta primero para garantizar permisos modernos.
-            if use_version > 6: use_version = 6 # Cap conservador en 6 por compatibilidad probada
+            # DSM 7.2 requiere v7 para ciertas operaciones administrativas
+            if use_version > 7: use_version = 7
                 
             url = f"{self.get_base_url()}/webapi/{api_path}"
             
@@ -213,10 +211,9 @@ class ConnectionService:
                 'method': 'login',
                 'account': self.config.admin_username,
                 'passwd': self.config.admin_password,
-                'session': session_alias,
-                'format': 'sid',
-                'enable_device_token': 'yes', # Solicitar DID
-                'device_name': 'SynologyManager_App'
+                'session': session_alias,   # Configurable: FileStation o DSM
+                'format': 'sid',            # Obtenemos SID en JSON
+                'enable_syno_token': 'yes'  # Requerido en DSM 7+ para obtener synotoken
             }
             
             response = requests.get(url, params=params, timeout=15, verify=False)
@@ -224,20 +221,14 @@ class ConnectionService:
             data = response.json()
             
             if data.get('success'):
-                logger.info("✅ Login exitoso")
-                self._sid = data['data']['sid'] 
-                self._synotoken = data['data'].get('synotoken')
-                self._did = data['data'].get('did')
-                
-                # Inyectar DID en la sesión de cookies
-                if self._did:
-                    self.session.cookies.set('did', self._did)
-                
+                logger.info("DONE Login exitoso")
+                self._sid = data['data']['sid'] # Guardar SID en la instancia
+                self._synotoken = data['data'].get('synotoken') # Guardar Token
                 return {
                     'success': True,
-                    'sid': self._sid,
+                    'sid': data['data']['sid'],
                     'synotoken': self._synotoken,
-                    'did': self._did
+                    'did': data.get('data', {}).get('did')
                 }
             else:
                 error_code = data.get('error', {}).get('code')
@@ -288,14 +279,17 @@ class ConnectionService:
             # 2. Construir URL base
             url = f"{self.get_base_url()}/webapi/{path}"
             
-            # 3. Preparar parámetros de control (siempre en la URL para mayor compatibilidad)
-            control_params = {
+            # 4. Preparar Payload Consolidado
+            # DSM 7+ exige que todos los parámetros (incluidos api, version, method y _sid)
+            # vayan en el cuerpo del POST para operaciones administrativas.
+            payload = {
                 'api': api,
                 'version': version,
-                'method': method
+                'method': method,
+                **params
             }
             
-            # 4. Inyectar SID y Token
+            # Inyectar SID si existe
             active_sid = sid or getattr(self, '_sid', None)
             headers = {
                 'Referer': f"{self.get_base_url()}/",
@@ -303,30 +297,24 @@ class ConnectionService:
             }
 
             if active_sid:
-                control_params['_sid'] = active_sid
-            
-            # Inyectar SynoToken si está disponible (CSRF Protection)
+                payload['_sid'] = active_sid
+                
+            # 5. Configurar Headers (Simular Postman exactamente)
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
             active_token = getattr(self, '_synotoken', None)
             if active_token:
-                control_params['SynoToken'] = active_token
                 headers['X-SYNO-TOKEN'] = active_token
-                
-            # 5. Ejecutar Request
-            # Nota: Synology suele aceptar todo por GET o POST. 
-            # Sin embargo, para peticiones que modifican datos (POST), es más robusto 
-            # pasar los parámetros de control (api, version, method, _sid) en el query string 
-            # y los parámetros de datos en el cuerpo (form-data).
-            if method in ['query', 'list', 'get']:
-                # En GET, todo va en la URL
-                all_params = {**control_params, **params}
-                resp = self.session.get(url, params=all_params, headers=headers, timeout=30, verify=False)
+
+            # 6. Ejecutar Request
+            if method in ['query', 'get']:
+                # Solo discovery y GET específicos
+                resp = requests.get(url, params=payload, headers=headers, timeout=30, verify=False)
             else:
-                # En POST, control en URL, data en BODY
-                body_data = params.copy()
-                if active_token:
-                    body_data['SynoToken'] = active_token
-                
-                resp = self.session.post(url, params=control_params, data=body_data, headers=headers, timeout=30, verify=False)
+                # Todo lo demás es POST para DSM 7
+                # data=payload asegura Content-Type: application/x-www-form-urlencoded
+                resp = requests.post(url, data=payload, headers=headers, timeout=30, verify=False)
                 
             # 6. Procesar respuesta
             if resp.status_code == 200:
