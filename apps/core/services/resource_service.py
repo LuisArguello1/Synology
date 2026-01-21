@@ -110,7 +110,15 @@ class ResourceService:
             return results
 
         try:
-            response = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1)
+            # Algunos DSM requieren limit y offset incluso para volúmenes (Error 101)
+            params = {'offset': 0, 'limit': 100}
+            response = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1, params=params)
+            
+            # Fallback a SYNO.Storage.CGI.Volume si falla (Diferencia de versiones DSM)
+            if not response.get('success') and response.get('error', {}).get('code') == 101:
+                logger.info("Retrying Volume list with 'SYNO.Storage.CGI.Volume'...")
+                response = self.connection.request('SYNO.Storage.CGI.Volume', 'list', version=1, params=params)
+
             logger.info(f"Volume API Response: {response}")
             
             if response.get('success'):

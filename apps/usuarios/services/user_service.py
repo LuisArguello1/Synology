@@ -97,23 +97,48 @@ class UserService:
         """
         try:
             # Traemos todo lo posible para poblar el Wizard en modo edición
-            additional = [
+            # Si falla, iremos quitando campos para asegurar que al menos traemos lo básico
+            all_additional = [
                 "email", "description", "expired", "groups", 
                 "quota", "cannot_change_password", "app_privilege",
                 "speed_limit"
             ] 
             
-            response = self.connection.request(
-                api='SYNO.Core.User',
-                method='get',
-                version=1,
-                params={
+            # Intentos progresivos: 1. Todo, 2. Básico, 3. Mínimo
+            attempts = [
+                all_additional,
+                ["email", "description", "groups", "quota"],
+                ["email", "groups"]
+            ]
+
+            response = None
+            for fields in attempts:
+                logger.info(f"Attempting get_user for '{name}' with additional={fields}")
+                params = {
                     'name': name,
-                    'additional': json.dumps(additional)
+                    'additional': json.dumps(fields)
                 }
-            )
-            
-            if response.get('success'):
+                response = self.connection.request(
+                    api='SYNO.Core.User',
+                    method='get',
+                    version=1,
+                    params=params
+                )
+                
+                # DSM 7+ a veces prefiere 'user_name' en el GET si 'name' falla con 3106
+                if not response.get('success') and response.get('error', {}).get('code') == 3106:
+                    logger.info(f"Retrying with 'user_name' parameter for '{name}'")
+                    params['user_name'] = name
+                    del params['name']
+                    response = self.connection.request('SYNO.Core.User', 'get', version=1, params=params)
+                
+                if response.get('success'):
+                    break
+                
+                error_code = response.get('error', {}).get('code')
+                logger.warning(f"get_user failed with code {error_code} for fields {fields}. Retrying...")
+
+            if response and response.get('success'):
                 users = response.get('data', {}).get('users', [])
                 if users:
                     user_data = users[0]
@@ -386,28 +411,27 @@ class UserService:
         try:
             # Construir parámetros dinámicamente para evitar enviar strings vacíos
             # que podrían causar problemas de validación o permisos
+            # Lean Params: Solo enviamos lo mínimo necesario que funcionó en Postman
+            # para evitar que flags opcionales disparen errores de política (105)
             params = {
                 'name': username,
                 'password': info['password']
             }
+            real_name = info.get('description') or username
+            params['real_name'] = real_name
             
-            # Solo agregar campos opcionales si tienen valor
             if info.get('email'):
                 params['email'] = info['email']
                 
             if info.get('description'):
                 params['description'] = info['description']
                 
-            # Booleanos solo si son True o si la API los requiere explícitamente
-            # Para send_welcome_email, a veces requiere configuración de mail server previa
-            if info.get('send_notification'):
+            # Solo activar si el usuario lo marcó explícitamente
+            if info.get('send_notification') is True:
                 params['send_welcome_email'] = 'true'
             
-            if info.get('cannot_change_password'):
+            if info.get('cannot_change_password') is True:
                 params['cannot_change_passwd'] = 'true'
-                
-            # Expired siempre enviamos normal por defecto
-            params['expired'] = 'normal'
             
             print("=" * 80)
             print("CREATING USER WITH DEDICATED ADMIN SESSION (SCOPE='DSM'):")
@@ -433,23 +457,16 @@ class UserService:
                 diag_resp = admin_conn.request('SYNO.Core.User', 'list', version=1, params={'limit': 1})
                 print(f"User List Result: {diag_resp}")
                 if not diag_resp.get('success'):
-                    print(f"❌ FALLÓ LECTURA DE USUARIOS: {diag_resp}")
+                    print(f"[FAIL] FALLO LECTURA DE USUARIOS: {diag_resp}")
                 else:
-                    print(f"✅ LECTURA EXITOSA. Total usuarios: {diag_resp.get('data', {}).get('total')}")
+                    print(f"[SUCCESS] LECTURA EXITOSA. Total usuarios: {diag_resp.get('data', {}).get('total')}")
             except Exception as e:
-                print(f"❌ EXCEPCIÓN EN DIAGNÓSTICO: {e}")
+                print(f"[FAIL] EXCEPCION EN DIAGNOSTICO: {e}")
             print("=" * 80)
             
             logger.info(f"Creating user with params: {params}")
-            # El método estándar para crear usuarios suele ser 'add' o 'create' 
-            # Probamos 'add' que es más común en Core.User
-            resp = admin_conn.request('SYNO.Core.User', 'add', version=1, params=params)
-            
-            if not resp.get('success'):
-                # Fallback a 'create' si 'add' no es el método (depende de versión de DSM)
-                if resp.get('error', {}).get('code') in [101, 102]: # Errores de API/Method no encontrado
-                    logger.info("Retrying with method 'create'...")
-                    resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
+            # En DSM 7+, el método único y obligatorio es 'create'
+            resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
             
             if not resp.get('success'):
                 error_code = resp.get('error', {}).get('code', 'Unknown')
