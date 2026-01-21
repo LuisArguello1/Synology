@@ -21,6 +21,17 @@ class LoginView(FormView):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
         return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Importación tardía para evitar ciclos
+        from apps.core.services.metrics_service import MetricsService
+        
+        # Obtener métricas para mostrar en el login
+        metrics_service = MetricsService()
+        context['metrics'] = metrics_service.get_dashboard_metrics()
+        
+        return context
     
     def form_valid(self, form):
         user = form.get_user()
@@ -55,7 +66,7 @@ class LoginView(FormView):
     def form_invalid(self, form):
         messages.error(
             self.request,
-            '❌ No se pudo iniciar sesión. Verifica credenciales y conexión.'
+            'No se pudo iniciar sesión. Verifica credenciales y conexión.'
         )
         return super().form_invalid(form)
     

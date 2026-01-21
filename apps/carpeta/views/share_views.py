@@ -36,6 +36,7 @@ class ShareListView(LoginRequiredMixin, TemplateView):
         
         context['shares'] = page_obj
         context['page_obj'] = page_obj
+        context['shares_json'] = json.dumps(all_shares)
         
         return context
 
@@ -64,7 +65,8 @@ class ShareWizardDataView(LoginRequiredMixin, View):
             service = ShareService()
             
             if mode == 'edit':
-                 result = service.update_share_wizard(data)
+                 share_name = data.get('info', {}).get('name') or data.get('name')
+                 result = service.update_share_wizard(share_name, data)
                  action_type = 'SHARE_UPDATE'
             else:
                  result = service.create_share_wizard(data)
@@ -89,25 +91,40 @@ class ShareWizardDataView(LoginRequiredMixin, View):
 
 class ShareDeleteView(LoginRequiredMixin, View):
     """
-    API Interna: Elimina carpeta
+    API Interna: Elimina carpeta(s).
+    Soporta eliminación masiva si name == 'batch'.
     """
     def post(self, request, name):
         service = ShareService()
-        result = service.delete_share(name)
+        
+        # Determinar si es masivo
+        names_to_delete = [name]
+        if name == 'batch':
+            try:
+                data = json.loads(request.body)
+                names_to_delete = data.get('names', [])
+            except:
+                return JsonResponse({'success': False, 'message': 'Cuerpo JSON inválido'}, status=400)
+
+        if not names_to_delete:
+            return JsonResponse({'success': False, 'message': 'No se especificaron carpetas'}, status=400)
+
+        result = service.delete_shares(names_to_delete)
         success = result.get('success', False)
         
-        if success:
-             # LOG AUDITORIA
+        if success or result.get('count', 0) > 0:
+            # LOG AUDITORIA
             from apps.auditoria.services.audit_service import AuditService
             AuditService.log(
                 action='SHARE_DELETE',
-                description=f"Carpeta compartida '{name}' eliminada.",
+                description=f"Eliminación de carpetas: {', '.join(names_to_delete)}",
                 user=request.user,
                 request=request,
-                details={'deleted_share': name}
+                details={'deleted_shares': names_to_delete, 'result': result}
             )
 
         return JsonResponse({
             'success': success,
-            'message': 'Carpeta eliminada correctamente' if success else 'Error al eliminar'
+            'message': result.get('message', 'Operación completada'),
+            'count': result.get('count', 0)
         })

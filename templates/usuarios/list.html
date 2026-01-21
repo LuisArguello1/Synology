@@ -4,7 +4,7 @@
 {% block title %}Usuarios - NAS Manager{% endblock %}
 
 {% block content %}
-<div class="h-full flex flex-col" x-data="userManagement()">
+<div class="h-full flex flex-col" x-data="userManagement()" @toast.window="addToast($event.detail.title, $event.detail.message, $event.detail.type)">
     
     <!-- Toast Container -->
     <div class="fixed top-4 right-4 z-[300] w-80 space-y-2 pointer-events-none">

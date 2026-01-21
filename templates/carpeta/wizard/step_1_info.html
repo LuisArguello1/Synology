@@ -1,30 +1,36 @@
 <div x-show="currentStep === 1" class="space-y-6">
     <!-- Form Fields -->
-    <div class="space-y-4">
+    <div class="space-y-5">
         <!-- Nombre -->
-        <div class="flex items-center">
-            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Nombre *:</label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+            <label class="w-32 text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Nombre *</label>
             <input type="text" x-model="formData.info.name"
-                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                :class="{'border-red-500': !formData.info.name && submitting}">
+                :disabled="mode === 'edit'"
+                class="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none disabled:bg-gray-50 disabled:text-gray-400 transition-all font-medium"
+                :class="{'border-red-400 bg-red-50': !formData.info.name && currentStep > 1}">
         </div>
 
         <!-- Descripción -->
-        <div class="flex items-center">
-            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Descripción:</label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+            <label class="w-32 text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Descripción</label>
             <textarea x-model="formData.info.description" rows="2"
-                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"></textarea>
+                class="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none resize-none transition-all font-medium"></textarea>
         </div>
 
         <!-- Ubicación -->
-        <div class="flex items-center">
-            <label class="w-32 text-sm font-medium text-gray-700 shrink-0">Ubicación:</label>
-            <select x-model="formData.info.volume"
-                class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
-                <template x-for="vol in options.volumes" :key="vol">
-                    <option :value="vol" x-text="vol.replace('/volume', 'Volumen ') + ' (btrfs)'"></option>
-                </template>
-            </select>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+            <label class="w-32 text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Ubicación</label>
+            <div class="flex-1 relative">
+                <select x-model="formData.info.volume"
+                    class="w-full appearance-none px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none bg-gray-50/50 transition-all font-medium cursor-pointer">
+                    <template x-for="vol in options.volumes" :key="vol">
+                        <option :value="vol" x-text="vol.replace('/volume', 'Volumen ') + ' (btrfs)'"></option>
+                    </template>
+                </select>
+                <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <i class="fas fa-chevron-down text-[10px]"></i>
+                </div>
+            </div>
         </div>
     </div>
 

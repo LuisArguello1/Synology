@@ -1,41 +1,41 @@
 <div x-show="currentStep === 2" class="space-y-6" x-data="{ showPass: false }">
     <div class="space-y-4">
-        <label class="flex items-center cursor-pointer">
+        <label class="flex items-center cursor-pointer group">
             <input type="radio" name="encryption" 
                 :checked="formData.security.encrypted === false"
                 @change="formData.security.encrypted = false"
-                class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-            <span class="ml-2 text-sm text-gray-700">Omitir</span>
+                class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 transition-all cursor-pointer">
+            <span class="ml-3 text-xs font-bold text-gray-700 group-hover:text-blue-600 transition-colors uppercase tracking-wider">Omitir Cifrado</span>
         </label>
         
-        <label class="flex items-start cursor-pointer">
+        <label class="flex items-start cursor-pointer group">
             <input type="radio" name="encryption" 
                 :checked="formData.security.encrypted === true"
                 @change="formData.security.encrypted = true"
-                class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-            <div class="ml-2">
-                <span class="block text-sm text-gray-700">Proteja esta carpeta compartida cifrándola</span>
-                <span class="block text-xs text-gray-500 mt-1">Cifre el contenido de esta carpeta compartida para mejorar la protección de datos.</span>
+                class="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 transition-all cursor-pointer">
+            <div class="ml-3">
+                <span class="block text-xs font-bold text-gray-700 group-hover:text-blue-600 transition-colors uppercase tracking-wider tracking-widest">Proteja esta carpeta compartida cifrándola</span>
+                <span class="block text-[10px] text-gray-400 mt-1 font-medium leading-relaxed">Cifre el contenido de esta carpeta para mejorar la protección de datos ante accesos físicos no autorizados.</span>
             </div>
         </label>
         
-        <div class="ml-6 space-y-3" x-show="formData.security.encrypted" x-transition>
-            <div class="flex items-center">
-                <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Clave de cifrado:</label>
+        <div class="ml-7 space-y-4 bg-gray-50/50 p-4 rounded-sm border border-gray-100" x-show="formData.security.encrypted" x-transition>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+                <label class="w-32 text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Clave de cifrado</label>
                 <div class="flex-1 relative">
                     <input :type="showPass ? 'text' : 'password'" x-model="formData.security.password"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none pr-8">
-                    <button type="button" @click="showPass = !showPass" class="absolute right-2 top-1.5 text-gray-400 hover:text-gray-600 focus:outline-none">
-                        <i class="fas" :class="showPass ? 'fa-eye-slash' : 'fa-eye'"></i>
+                        class="w-full px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none pr-8 transition-all font-medium">
+                    <button type="button" @click="showPass = !showPass" class="absolute right-2 top-2 text-gray-300 hover:text-blue-500 focus:outline-none transition-colors">
+                        <i class="fas text-[10px]" :class="showPass ? 'fa-eye-slash' : 'fa-eye'"></i>
                     </button>
                 </div>
             </div>
-            <div class="flex items-center">
-                <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Confirmar clave:</label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+                <label class="w-32 text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Confirmar clave</label>
                 <div class="flex-1 relative">
                     <input :type="showPass ? 'text' : 'password'" x-model="formData.security.password_confirm"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none pr-8"
-                        :class="{'border-red-500': formData.security.password && formData.security.password !== formData.security.password_confirm}">
+                        class="w-full px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none pr-8 transition-all font-medium"
+                        :class="{'border-red-400 bg-red-50': formData.security.password && formData.security.password !== formData.security.password_confirm}">
                 </div>
             </div>
         </div>

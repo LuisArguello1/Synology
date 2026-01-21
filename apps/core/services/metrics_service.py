@@ -65,7 +65,7 @@ class MetricsService:
                 'memory_usage': 34, 
                 'uptime_days': 15, 
                 'temperature': 42,
-                'network': {'upload': '24.5 KB/s', 'download': '1.2 MB/s'}
+                'network': {'upload': '24.5 KB/s', 'download': '1.2 MB/s', 'up_raw': 25088, 'down_raw': 1258291}
             },
             'health': {'status': 'health-ok', 'is_ok': True},
             'connections': {'total': 3},
@@ -93,7 +93,7 @@ class MetricsService:
                 'memory_usage': 0, 
                 'uptime_days': 0, 
                 'temperature': 0,
-                'network': {'upload': '0 KB/s', 'download': '0 KB/s'}
+                'network': {'upload': '0 KB/s', 'download': '0 KB/s', 'up_raw': 0, 'down_raw': 0}
             },
             'health': {'status': 'Unknown', 'is_ok': False},
             'connections': {'total': 0},
@@ -162,7 +162,7 @@ class MetricsService:
             'memory_usage': 0,
             'uptime_days': 0,
             'temperature': 0,
-            'network': {'upload': '0 KB/s', 'download': '0 KB/s'}
+            'network': {'upload': '0 KB/s', 'download': '0 KB/s', 'up_raw': 0, 'down_raw': 0}
         }
         
         try:
@@ -182,21 +182,17 @@ class MetricsService:
                 # Network flow
                 net = data.get('network', [])
                 if net and len(net) > 0:
-                    # Sumamos todas las interfaces? o tomamos total
-                    # net es lista de interfaces {tx: X, rx: Y}
                     tx_total = sum(int(n.get('tx', 0)) for n in net)
                     rx_total = sum(int(n.get('rx', 0)) for n in net)
-                    metrics['network']['upload'] = self._format_bytes(tx_total) + '/s'
-                    metrics['network']['download'] = self._format_bytes(rx_total) + '/s'
+                    metrics['network']['up_raw'] = tx_total
+                    metrics['network']['down_raw'] = rx_total
+                    metrics['network']['upload'] = self._format_speed(tx_total)
+                    metrics['network']['download'] = self._format_speed(rx_total)
 
             # 2. System Status (Uptime, Temp)
-            # SYNO.Core.System method=info
             info_resp = self.connection.request('SYNO.Core.System', 'info', version=1)
             if info_resp.get('success'):
                 d = info_resp.get('data', {})
-                # Uptime esta en segundos?
-                # A veces 'uptime' no viene directo aqui, depende version.
-                # Si no está, asumimos 0.
                 uptime_sec = int(d.get('uptime', 0))
                 metrics['uptime_days'] = uptime_sec // 86400
                 
@@ -208,6 +204,12 @@ class MetricsService:
             logger.error(f"Error fetching system metrics: {e}")
             
         return metrics
+
+    def _format_speed(self, b):
+        """Formatea bytes/s a formato legible"""
+        if b < 1024: return f"{b} B/s"
+        if b < 1024 * 1024: return f"{b/1024:.1f} KB/s"
+        return f"{b/(1024*1024):.1f} MB/s"
 
     def _get_health_status(self):
         """

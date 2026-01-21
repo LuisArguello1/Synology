@@ -1,57 +1,57 @@
 <div x-show="currentStep === 3" class="space-y-6">
-    <div class="space-y-4">
+    <div class="space-y-5">
         
         <!-- Checksum -->
-        <div>
-            <label class="flex items-start">
-                <input type="checkbox" x-model="formData.advanced.checksum" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700 flex items-center">
-                    Habilitar la suma de comprobación para la integridad de datos avanzada
-                    <i class="fas fa-info-circle text-blue-400 ml-1.5"></i>
-                </span>
+        <div class="group">
+            <label class="flex items-start cursor-pointer">
+                <input type="checkbox" x-model="formData.advanced.checksum" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded-sm focus:ring-blue-500 transition-all cursor-pointer">
+                <span class="ml-3 text-[11px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Integridad de datos avanzada</span>
             </label>
-            <p class="ml-6 mt-1 text-xs text-gray-500">
-                La recuperación automática de archivos y la depuración de datos están disponibles para garantizar la integridad de los datos.
+            <p class="ml-7 mt-1 text-[10px] text-gray-400 font-medium leading-relaxed max-w-lg">
+                Habilita la recuperación automática de archivos y la depuración de datos para garantizar la integridad total.
             </p>
         </div>
 
         <!-- Compression -->
-        <div>
-            <label class="flex items-start">
-                <input type="checkbox" x-model="formData.advanced.compression" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700 flex items-center">
-                    Habilitar compresión de archivos
-                    <i class="fas fa-info-circle text-blue-400 ml-1.5"></i>
-                </span>
+        <div class="group">
+            <label class="flex items-start cursor-pointer">
+                <input type="checkbox" x-model="formData.advanced.compression" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded-sm focus:ring-blue-500 transition-all cursor-pointer">
+                <span class="ml-3 text-[11px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Compresión de archivos</span>
             </label>
         </div>
 
         <!-- Quota -->
-        <div>
-            <label class="flex items-start">
-                <input type="checkbox" x-model="formData.advanced.quota_enabled" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">Habilitar la cuota de carpetas compartidas</span>
+        <div class="group">
+            <label class="flex items-start cursor-pointer">
+                <input type="checkbox" x-model="formData.advanced.quota_enabled" class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded-sm focus:ring-blue-500 transition-all cursor-pointer">
+                <span class="ml-3 text-[11px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Cuota de carpeta compartida</span>
             </label>
-            <div class="ml-6 mt-2 flex items-center gap-2" x-show="formData.advanced.quota_enabled">
+            <div class="ml-7 mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-100 rounded-sm" x-show="formData.advanced.quota_enabled" x-transition>
                  <input type="number" x-model="formData.advanced.quota_size"
-                        class="w-24 px-3 py-1.5 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
-                 <select x-model="formData.advanced.quota_unit"
-                        class="w-20 px-3 py-1.5 text-sm border border-gray-300 rounded bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
-                     <option value="MB">MB</option>
-                     <option value="GB">GB</option>
-                     <option value="TB">TB</option>
-                 </select>
+                        class="w-24 px-3 py-2 text-xs border border-gray-200 rounded-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none font-bold">
+                 <div class="relative w-20">
+                    <select x-model="formData.advanced.quota_unit"
+                           class="w-full appearance-none px-3 py-2 text-xs border border-gray-200 rounded-sm bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none cursor-pointer font-bold">
+                        <option value="MB">MB</option>
+                        <option value="GB">GB</option>
+                        <option value="TB">TB</option>
+                    </select>
+                    <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <i class="fas fa-chevron-down text-[8px]"></i>
+                    </div>
+                 </div>
             </div>
         </div>
 
     </div>
     
-    <div class="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-600 border border-gray-100">
-        <strong class="text-blue-600 undeline mb-2 block">Observación:</strong>
-        <p>Para garantizar la calidad del servicio, recomendamos no habilitar la suma de comprobación de datos en los siguientes casos:</p>
-        <ul class="list-disc list-inside mt-1 space-y-1">
-            <li>Si aloja una base de datos o máquina virtual en esta carpeta compartida</li>
-            <li>Si almacena grabaciones de Surveillance Station en esta carpeta compartida</li>
-        </ul>
+    <div class="mt-6 p-4 bg-blue-50/50 rounded-sm border-l-4 border-blue-400">
+        <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-info-circle text-blue-500 text-xs"></i>
+            <h4 class="text-[11px] font-bold text-blue-800 uppercase tracking-widest">Recomendación</h4>
+        </div>
+        <p class="text-[10px] text-blue-700 leading-relaxed">
+            No habilitar la integridad de datos si planea alojar base de datos, máquinas virtuales o grabaciones de Surveillance Station, para mantener el rendimiento óptimo.
+        </p>
     </div>
 </div>

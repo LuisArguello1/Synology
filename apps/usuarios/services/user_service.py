@@ -133,19 +133,33 @@ class UserService:
 
     def delete_user(self, names):
         """
-        Elimina uno o varios usuarios.
+        Elimina uno o varios usuarios usando sesión administrativa.
         API: SYNO.Core.User method=delete
         """
         # Synology permite nombres separados por coma para borrado en lote
         if isinstance(names, list):
             names = ",".join(names)
             
-        return self.connection.request(
-            api='SYNO.Core.User',
-            method='delete',
-            version=1,
-            params={'name': names}
-        )
+        admin_conn = ConnectionService(self.config)
+        auth_result = admin_conn.authenticate(session_alias='DSM')
+        
+        if not auth_result.get('success'):
+            logger.error(f"Failed to create admin session for deletion: {auth_result}")
+            return auth_result
+            
+        current_sid = auth_result.get('sid')
+        try:
+            logger.info(f"Deleting user(s): {names}")
+            resp = admin_conn.request(
+                api='SYNO.Core.User',
+                method='delete',
+                version=1,
+                params={'name': names}
+            )
+            return resp
+        finally:
+            if admin_conn and current_sid:
+                admin_conn.logout(current_sid, session_alias='DSM')
 
     def get_wizard_options(self):
         """
@@ -203,6 +217,7 @@ class UserService:
                         if ug_resp.get('success') and ug_resp['data']['groups']:
                             for g_info in ug_resp['data']['groups']:
                                 g_name = g_info['name']
+                                apps_priv = g_info.get('app_privilege', {})
                                 options['group_permissions'][g_name] = {
                                     'shares': {sp['share_name']: sp['privilege'] for sp in g_info.get('share_privilege', [])},
                                     'apps': {}
@@ -236,7 +251,7 @@ class UserService:
 
         # 0. Flags de Usuario
         if 'cannot_change_password' in info:
-            update_params['cannot_change_passwd'] = info['cannot_change_password']
+            update_params['cannot_change_passwd'] = 'true' if info['cannot_change_password'] else 'false'
             has_updates = True
 
         # 1. Grupos
@@ -251,10 +266,10 @@ class UserService:
             for share_name, policy in data['permissions'].items():
                 if policy not in ['rw', 'ro', 'na']: continue
                 try:
-                    p_resp = self.connection.request(
+                    p_resp = active_conn.request(
                         api='SYNO.Core.Share.Permission',
-                        method='write', version=1,
-                        params={'name': share_name, 'user_name': username, 'privilege': policy}
+                        method='set', version=1,
+                        params={'name': share_name, 'user_name': username, 'privilege': policy, 'is_group': 'false'}
                     )
                     if not p_resp.get('success'): 
                         error_msg = p_resp.get('error', {}).get('code', 'Unknown')
@@ -338,7 +353,12 @@ class UserService:
         # Ejecutar update consolidado en el NAS
         if has_updates:
             try:
-                resp_up = active_conn.request('SYNO.Core.User', 'update', version=1, params=update_params)
+                # Intentamos 'set' primero (estándar en algunas versiones para actualizar)
+                resp_up = active_conn.request('SYNO.Core.User', 'set', version=1, params=update_params)
+                if not resp_up.get('success'):
+                    # Fallback a 'update'
+                    resp_up = active_conn.request('SYNO.Core.User', 'update', version=1, params=update_params)
+                
                 if resp_up.get('success'): 
                     results['steps'].append('Advanced Settings Applied')
                 else: 
@@ -368,8 +388,7 @@ class UserService:
             # que podrían causar problemas de validación o permisos
             params = {
                 'name': username,
-                'password': info['password'],
-                'action': 'create' # 💡 Agregado por solicitud del usuario
+                'password': info['password']
             }
             
             # Solo agregar campos opcionales si tienen valor
@@ -422,12 +441,15 @@ class UserService:
             print("=" * 80)
             
             logger.info(f"Creating user with params: {params}")
-            resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
+            # El método estándar para crear usuarios suele ser 'add' o 'create' 
+            # Probamos 'add' que es más común en Core.User
+            resp = admin_conn.request('SYNO.Core.User', 'add', version=1, params=params)
             
-            print("=" * 80)
-            print("SYNOLOGY API RESPONSE (ADMIN SESSION):")
-            print(resp)
-            print("=" * 80)
+            if not resp.get('success'):
+                # Fallback a 'create' si 'add' no es el método (depende de versión de DSM)
+                if resp.get('error', {}).get('code') in [101, 102]: # Errores de API/Method no encontrado
+                    logger.info("Retrying with method 'create'...")
+                    resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
             
             if not resp.get('success'):
                 error_code = resp.get('error', {}).get('code', 'Unknown')
@@ -447,7 +469,7 @@ class UserService:
             # Siempre cerrar la sesión administrativa dedicada
             if admin_conn and current_sid:
                 logger.info("Closing admin session...")
-                admin_conn.logout(current_sid)
+                admin_conn.logout(current_sid, session_alias='DSM')
 
         # Paso 3: Evaluar éxito global
         results['success'] = len(results['errors']) == 0
@@ -471,29 +493,39 @@ class UserService:
         
         if not username: return {'success': False, 'message': 'Username is required'}
 
-        # Paso 1: Update BaseInfo
+        # Paso 1: Update BaseInfo (Usando sesión administrativa para evitar Error 105)
+        admin_conn = ConnectionService(self.config)
+        auth_result = admin_conn.authenticate(session_alias='DSM')
+        
+        if not auth_result.get('success'):
+            return {'success': False, 'message': f"Failed to authenticate as admin: {auth_result.get('message')}"}
+        
+        current_sid = auth_result.get('sid')
+        
         try:
             params = {'name': username}
             if info.get('email'): params['email'] = info['email']
             if info.get('description'): params['description'] = info['description']
             if info.get('password'): params['password'] = info['password']
             
-            resp = self.connection.request('SYNO.Core.User', 'update', version=1, params=params)
+            # El método estándar para actualizar suele ser 'set' o 'update'
+            resp = admin_conn.request('SYNO.Core.User', 'set', version=1, params=params)
             if not resp.get('success'):
-                 results['errors'].append(f"Base info update failed: {resp}")
+                 # Fallback a 'update'
+                 resp = admin_conn.request('SYNO.Core.User', 'update', version=1, params=params)
+                 if not resp.get('success'):
+                    results['errors'].append(f"Base info update failed: {resp}")
             else:
                  results['steps'].append('Base Info Updated')
-        except Exception as e:
-            results['errors'].append(f"Update info exception: {str(e)}")
 
-        # Paso 2: Aplicar configuraciones avanzadas (Requiere DSM session para update/quota/groups)
-        admin_conn = ConnectionService(self.config)
-        admin_conn.authenticate(session_alias='DSM')
-        try:
+            # Paso 2: Aplicar configuraciones avanzadas
             self.apply_user_settings(username, data, results, conn=admin_conn)
+            
+        except Exception as e:
+            results['errors'].append(f"Update exception: {str(e)}")
         finally:
-            if admin_conn.get_sid():
-                admin_conn.logout(admin_conn.get_sid())
+            if admin_conn and current_sid:
+                admin_conn.logout(current_sid, session_alias='DSM')
         
         results['success'] = len(results['errors']) == 0
         if not results['success']:

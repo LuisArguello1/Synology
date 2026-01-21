@@ -60,16 +60,89 @@ class GroupServiceTest(TestCase):
 
     @override_settings(NAS_OFFLINE_MODE=False)
     @patch('apps.groups.services.group_service.ConnectionService')
-    def test_create_group_online(self, MockConnection):
-        """Test creating group in online mode."""
-        mock_conn = MockConnection.return_value
-        mock_conn.request.return_value = {'success': True}
+    def test_create_group_online(self, MockConnectionService):
+        """Test creating group in online mode with DSM session verification."""
+        # 1. Configurar el mock para la instancia (self.connection y admin_conn)
+        mock_instance = MockConnectionService.return_value
+        # Todas las llamadas a request devuelven éxito por defecto
+        mock_instance.request.return_value = {'success': True}
+        # authenticate devuelve un diccionario con sid o el mismo mock
+        mock_instance.authenticate.return_value = {'success': True, 'sid': 'test_sid'}
         
         service = GroupService()
-        result = service.create_group({'name': 'nas_created_group', 'description': 'online'})
+        result = service.create_group({
+            'name': 'nas_created_group', 
+            'description': 'online',
+            'members': ['user1']
+        })
         
         self.assertTrue(result['success'])
-        mock_conn.request.assert_called_with(
-            'SYNO.Core.Group', 'create', version=1, 
-            params={'name': 'nas_created_group', 'description': 'online'}
-        )
+        # Verificar que se intentó autenticar con DSM
+        mock_instance.authenticate.assert_any_call(session_alias='DSM')
+        # Verificar que se cerró la sesión DSM
+        mock_instance.logout.assert_called_with('test_sid', session_alias='DSM')
+
+    def test_delete_group_offline(self):
+        """Test deleting a group in offline mode."""
+        service = GroupService()
+        # Crear grupo para borrar
+        service.create_group({'name': 'to_delete', 'description': 'bye'})
+        
+        result = service.delete_group('to_delete')
+        self.assertTrue(result['success'])
+        
+        # Verificar que no está
+        groups = service.list_groups()
+        self.assertNotIn('to_delete', [g['name'] for g in groups])
+
+    @override_settings(NAS_OFFLINE_MODE=False)
+    @patch('apps.groups.services.group_service.ConnectionService')
+    def test_delete_group_online(self, MockConnectionService):
+        """Test deleting group in online mode with DSM session."""
+        mock_instance = MockConnectionService.return_value
+        mock_instance.request.return_value = {'success': True}
+        mock_instance.authenticate.return_value = {'success': True, 'sid': 'test_sid'}
+        
+        # Simular que el grupo existe y NO es de sistema
+        with patch.object(GroupService, 'get_group') as mock_get:
+            mock_get.return_value = {'name': 'existing_group', 'is_system': False}
+            
+            service = GroupService()
+            result = service.delete_group('existing_group')
+            
+            self.assertTrue(result['success'])
+            mock_instance.authenticate.assert_called_with(session_alias='DSM')
+            mock_instance.logout.assert_called_with('test_sid', session_alias='DSM')
+
+    def test_update_wizard_offline(self):
+        """Test update wizard logic in offline mode."""
+        service = GroupService()
+        service.create_group({'name': 'wizard_test', 'description': 'old'})
+        
+        update_data = {
+            'info': {'description': 'new desc'},
+            'members': ['admin']
+        }
+        
+        # Corregido: update_group_wizard ahora recibe (name, data)
+        result = service.update_group_wizard('wizard_test', update_data)
+        self.assertTrue(result['success'])
+        
+        group = service.get_group('wizard_test')
+        self.assertEqual(group['description'], 'new desc')
+
+    @override_settings(NAS_OFFLINE_MODE=False)
+    @patch('apps.groups.services.group_service.ConnectionService')
+    def test_sync_members_fallback(self, MockConnectionService):
+        """Verify _sync_group_members próbility/fallback."""
+        mock_instance = MockConnectionService.return_value
+        # Simular que 'set' falla pero 'add' funciona
+        mock_instance.request.side_effect = [
+            {'success': False, 'error': {'code': 101}},
+            {'success': True}
+        ]
+        
+        service = GroupService()
+        success = service._sync_group_members(mock_instance, 'test_group', ['user1'])
+        self.assertTrue(success)
+        self.assertGreaterEqual(mock_instance.request.call_count, 2)

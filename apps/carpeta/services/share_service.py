@@ -1,5 +1,7 @@
 import logging
 import json
+import os
+from django.conf import settings
 from apps.settings.services.connection_service import ConnectionService
 from apps.settings.models import NASConfig
 
@@ -8,19 +10,47 @@ logger = logging.getLogger(__name__)
 class ShareService:
     """
     Servicio de orquestación para Carpetas Compartidas Synology.
-    Interactúa directamente con SYNO.Core.Share.*
+    Soporta modo offline y sesiones administrativas DSM.
     """
     
-    def __init__(self):
+    def __init__(self, session_alias='FileStation'):
         self.config = NASConfig.get_active_config()
         self.connection = ConnectionService(self.config)
-        self.connection.authenticate()
+        if not getattr(settings, 'NAS_OFFLINE_MODE', False):
+            self.connection.authenticate(session_alias=session_alias)
         
+        # Simulación offline
+        self.sim_db_path = os.path.join(settings.BASE_DIR, 'nas_sim_shares.json')
+        self._ensure_sim_file()
+
+    def _ensure_sim_file(self):
+        if not os.path.exists(self.sim_db_path):
+            default_data = [
+                {
+                    'name': 'video', 'desc': 'Películas y series', 
+                    'vol_path': '/volume1', 'recyclebin': True, 'encryption': 0
+                },
+                {
+                    'name': 'music', 'desc': 'Biblioteca musical', 
+                    'vol_path': '/volume1', 'recyclebin': True, 'encryption': 0
+                }
+            ]
+            self._save_sim_data(default_data)
+
+    def _get_sim_data(self):
+        try:
+            with open(self.sim_db_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except: return []
+
+    def _save_sim_data(self, data):
+        with open(self.sim_db_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
     def list_shares(self, limit=50, offset=0):
-        """
-        Lista carpetas compartidas.
-        API: SYNO.Core.Share method=list
-        """
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            return self._get_sim_data()
+            
         try:
             response = self.connection.request(
                 api='SYNO.Core.Share',
@@ -29,181 +59,193 @@ class ShareService:
                 params={
                     'limit': limit,
                     'offset': offset,
-                    'additional': json.dumps(["vol_path", "mount_point_type", "encryption", "recyclebin"])
+                    'additional': json.dumps([
+                        "vol_path", "mount_point_type", "encryption", "recyclebin", 
+                        "desc", "enable_share_compress", "enable_share_cow"
+                    ])
                 }
             )
-            
-            if response.get('success'):
-                return response.get('data', {}).get('shares', [])
-            
-            logger.error(f"Error listing shares: {response}")
-            return []
-            
-        except Exception as e:
-            logger.exception("Exception listing shares")
+            return response.get('data', {}).get('shares', []) if response.get('success') else []
+        except Exception:
+            logger.exception("Error listing shares")
             return []
 
     def get_share(self, name):
-        """
-        Obtiene detalles de UNA carpeta compartida.
-        API: SYNO.Core.Share method=get
-        """
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            shares = self._get_sim_data()
+            raw_share = next((s for s in shares if s['name'] == name), None)
+            return self._normalize_share_for_wizard(raw_share) if raw_share else None
+
         try:
-            additional = ["vol_path", "encryption", "recyclebin", "desc"]
-            
             response = self.connection.request(
                 api='SYNO.Core.Share',
                 method='get',
                 version=1,
                 params={
-                    'name': name,
-                    'additional': json.dumps(additional)
+                    'name': name, 
+                    'additional': json.dumps([
+                        "vol_path", "encryption", "recyclebin", "desc", 
+                        "quota_value", "enable_share_compress", "enable_share_cow",
+                        "browseable", "hide_unreadable", "adv_recycle_bin_admin_only"
+                    ])
                 }
             )
-            
-            if response.get('success'):
-                shares = response.get('data', {}).get('shares', [])
-                if shares:
-                    raw_share = shares[0]
-                    # Transformar al formato del Wizard
-                    return {
-                        'info': {
-                            'name': raw_share.get('name', ''),
-                            'description': raw_share.get('desc', ''),
-                            'volume': raw_share.get('vol_path', '/volume1'),
-                            'recyclebin': raw_share.get('recyclebin', False),
-                             # Campos no siempre disponibles en API estándar
-                            'hide_network': False,
-                            'hide_subfolders': False,
-                            'admin_only': False
-                        },
-                        'security': {
-                            'encrypted': raw_share.get('encryption', 0) == 1,
-                            'password': '', # No retornan password
-                            'password_confirm': ''
-                        },
-                        'advanced': {
-                            # Valores por defecto o intentar mapear si API devuelve más info
-                            'checksum': False,
-                            'compression': False,
-                            'quota_enabled': False,
-                            'quota_size': 0,
-                            'quota_unit': 'GB'
-                        }
-                    }
-            return None
-            
-        except Exception as e:
+            if response.get('success') and response.get('data', {}).get('shares'):
+                return self._normalize_share_for_wizard(response['data']['shares'][0])
+        except Exception:
             logger.exception(f"Error getting share {name}")
-            return None
+        return None
+
+    def _normalize_share_for_wizard(self, raw_share):
+        return {
+            'info': {
+                'name': raw_share.get('name', ''),
+                'description': raw_share.get('desc', '') or raw_share.get('description', ''),
+                'volume': raw_share.get('vol_path', '/volume1'),
+                'recyclebin': raw_share.get('recyclebin', False),
+                'hide_network': not raw_share.get('browseable', True),
+                'hide_subfolders': raw_share.get('hide_unreadable', False),
+                'admin_only': raw_share.get('adv_recycle_bin_admin_only', False)
+            },
+            'security': {
+                'encrypted': raw_share.get('encryption', 0) == 1,
+                'password': '', 'password_confirm': ''
+            },
+            'advanced': {
+                'checksum': raw_share.get('enable_share_cow', False),
+                'compression': raw_share.get('enable_share_compress', False),
+                'quota_enabled': raw_share.get('quota_value', 0) > 0,
+                'quota_size': raw_share.get('quota_value', 0),
+                'quota_unit': 'MB'
+            }
+        }
 
     def delete_share(self, name):
-        """
-        Elimina una carpeta compartida.
-        API: SYNO.Core.Share method=delete
-        """
-        return self.connection.request(
-            api='SYNO.Core.Share',
-            method='delete',
-            version=1,
-            params={'name': name}
-        )
+        return self.delete_shares([name])
 
-    def get_wizard_options(self):
-        """
-        Obtiene opciones para el wizard (básicamente volúmenes).
-        """
-        options = {
-            'volumes': []
-        }
+    def delete_shares(self, names):
+        """Elimina una lista de carpetas compartidas."""
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            shares = self._get_sim_data()
+            new_shares = [s for s in shares if s['name'] not in names]
+            self._save_sim_data(new_shares)
+            return {'success': True, 'count': len(names)}
+
+        admin_conn = ConnectionService(self.config)
+        auth = admin_conn.authenticate(session_alias='DSM')
+        if not auth.get('success'): return auth
         
+        results = []
         try:
-            # Obtener volúmenes
-            v_resp = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1)
-            if v_resp.get('success'):
-                # Formato esperado: "/volume1"
-                options['volumes'] = [v['path'] for v in v_resp['data']['volumes']]
-            else:
-                 options['volumes'] = ['/volume1'] # Fallback
-        except Exception as e:
-            logger.error(f"Error fetching wizard options: {e}")
-            if not options['volumes']: options['volumes'] = ['/volume1']
+            for name in names:
+                resp = admin_conn.request(
+                    api='SYNO.Core.Share', method='delete', version=1, 
+                    params={'name': name}
+                )
+                results.append(resp.get('success', False))
             
-        return options
+            success = all(results)
+            return {
+                'success': success, 
+                'message': 'Todas las carpetas eliminadas' if success else 'Algunas carpetas no pudieron eliminarse',
+                'count': results.count(True)
+            }
+        finally:
+            admin_conn.logout(auth.get('sid'), session_alias='DSM')
 
     def create_share_wizard(self, data):
-        """
-        Orquestador de CREACIÓN de carpeta compartida.
-        """
         return self._save_share_wizard(data, mode='create')
 
-    def update_share_wizard(self, data):
-        """
-        Orquestador de EDICIÓN de carpeta compartida.
-        Nota: SYNO.Core.Share 'set' tiene params parecidos a create pero no todos son modificables.
-        """
-        return self._save_share_wizard(data, mode='edit')
+    def update_share_wizard(self, name, data):
+        return self._save_share_wizard(data, mode='edit', name=name)
 
-    def _save_share_wizard(self, data, mode='create'):
-        results = {'success': False, 'steps': [], 'errors': []}
+    def _save_share_wizard(self, data, mode='create', name=None):
         info = data.get('info', {})
-        name = info.get('name')
+        advanced = data.get('advanced', {})
+        security = data.get('security', {})
+        target_name = name or info.get('name')
         
-        if not name: return {'success': False, 'message': 'Name is required'}
+        # Conversión de Cuota a MB
+        quota_mb = 0
+        if advanced.get('quota_enabled'):
+            try:
+                size = float(advanced.get('quota_size', 0))
+                unit = advanced.get('quota_unit', 'MB')
+                if unit == 'GB': size *= 1024
+                elif unit == 'TB': size *= 1024 * 1024
+                quota_mb = int(size)
+            except (ValueError, TypeError): quota_mb = 0
 
-        # Params comunes
-        params = {
-            'name': name,
-            'desc': info.get('description', ''),
-        }
-        
-        # En create es obligatorio vol_path, en edit no necesariamente (no se suele mover fácil)
-        if mode == 'create':
-            params['vol_path'] = info.get('volume', '/volume1')
-            params['recyclebin'] = info.get('recyclebin', False)
-            
-            # Seguridad / Cifrado solo al crear (usualmente)
-            security = data.get('security', {})
-            if security.get('encrypted'):
-                params['encryption'] = 1
-                params['key'] = security.get('password', '')
-        
-        else:
-             # UPDATE (method 'set')
-             # recyclebin se puede editar
-             params['recyclebin'] = info.get('recyclebin', False)
-             # Volumen no se envía en update
-        
-        method = 'create' if mode == 'create' else 'set'
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            shares = self._get_sim_data()
+            if mode == 'create':
+                shares.append({
+                    'name': target_name, 
+                    'desc': info.get('description', ''),
+                    'vol_path': info.get('volume', '/volume1'),
+                    'recyclebin': info.get('recyclebin', False),
+                    'encryption': 1 if security.get('encrypted') else 0,
+                    'quota_value': quota_mb,
+                    'enable_share_compress': advanced.get('compression', False),
+                    'enable_share_cow': advanced.get('checksum', False),
+                    'browseable': not info.get('hide_network', False),
+                    'hide_unreadable': info.get('hide_subfolders', False),
+                    'adv_recycle_bin_admin_only': info.get('admin_only', False)
+                })
+            else:
+                for s in shares:
+                    if s['name'] == target_name:
+                        s['desc'] = info.get('description', s.get('desc'))
+                        s['recyclebin'] = info.get('recyclebin', s.get('recyclebin'))
+                        s['quota_value'] = quota_mb
+                        s['enable_share_compress'] = advanced.get('compression', s.get('enable_share_compress'))
+                        s['enable_share_cow'] = advanced.get('checksum', s.get('enable_share_cow'))
+                        s['browseable'] = not info.get('hide_network', not s.get('browseable', True))
+                        s['hide_unreadable'] = info.get('hide_subfolders', s.get('hide_unreadable', False))
+                        s['adv_recycle_bin_admin_only'] = info.get('admin_only', s.get('adv_recycle_bin_admin_only', False))
+                        break
+            self._save_sim_data(shares)
+            return {'success': True}
+
+        admin_conn = ConnectionService(self.config)
+        auth = admin_conn.authenticate(session_alias='DSM')
+        if not auth.get('success'): return auth
 
         try:
-            resp = self.connection.request('SYNO.Core.Share', method, version=1, params=params)
-            
-            if not resp.get('success'):
-                 error_code = resp.get('error', {}).get('code')
-                 return {'success': False, 'message': f"Synology Error {error_code}: {self._get_error_msg(error_code)}"}
-            
-            results['steps'].append(f"Share {'Created' if mode=='create' else 'Updated'}")
-            results['success'] = True
-            
-        except Exception as e:
-             return {'success': False, 'message': f'Exception: {str(e)}'}
+            params = {
+                'name': target_name,
+                'desc': info.get('description', ''),
+                'enable_recycle_bin': json.dumps(info.get('recyclebin', False)),
+                'browseable': json.dumps(not info.get('hide_network', False)),
+                'hide_unreadable': json.dumps(info.get('hide_subfolders', False)),
+                'adv_recycle_bin_admin_only': json.dumps(info.get('admin_only', False))
+            }
 
-        return results
-        
-    def _get_error_msg(self, code):
-        # Códigos de error comunes de SYNO.Core.Share
-        errors = {
-            400: "Nombre de carpeta inválido o faltan parámetros.",
-            401: "Parámetro inválido.",
-            402: "El sistema es demasiado lento (busy).",
-            403: "Nombre de carpeta ya existe.",
-            404: "Nombre de carpeta inválido.",
-            405: "Caracteres especiales no permitidos.",
-            406: "No se permite 'home' como nombre.",
-            407: "Nombre reservado por el sistema.",
-            408: "El volumen no existe.",
-            409: "El volumen está desmontado.",
-            # Agregar más según doc oficial
-        }
-        return errors.get(code, "Error desconocido")
+            if mode == 'create':
+                params.update({
+                    'vol_path': info.get('volume', '/volume1'),
+                    'enable_share_compress': json.dumps(advanced.get('compression', False)),
+                    'enable_share_cow': json.dumps(advanced.get('checksum', False))
+                })
+                if security.get('encrypted'):
+                    params.update({'encryption': 1, 'key': security.get('password', '')})
+            
+            method = 'create' if mode == 'create' else 'set'
+            resp = admin_conn.request('SYNO.Core.Share', method, version=1, params=params)
+            
+            # Aplicar Cuota
+            if resp.get('success'):
+                quota_params = {'name': target_name, 'quota_value': quota_mb}
+                admin_conn.request('SYNO.Core.Share', 'set', version=1, params=quota_params)
+            
+            return resp
+        finally:
+            admin_conn.logout(auth.get('sid'), session_alias='DSM')
+
+    def get_wizard_options(self):
+        if getattr(settings, 'NAS_OFFLINE_MODE', False):
+            return {'volumes': ['/volume1', '/volume2']}
+        try:
+            v_resp = self.connection.request('SYNO.Core.Storage.Volume', 'list', version=1)
+            return {'volumes': [v['path'] for v in v_resp['data']['volumes']]} if v_resp.get('success') else {'volumes': ['/volume1']}
+        except: return {'volumes': ['/volume1']}

@@ -1,310 +1,260 @@
 {% extends 'layouts/base.html' %}
 
-{% block title %}Dashboard - NAS Manager{% endblock %}
+{% block title %}Dashboard - NAS Manager Premium{% endblock %}
 
 {% block content %}
-<div class="space-y-4 px-4 py-4 max-w-[1400px] mx-auto">
+<div class="px-5 py-6 max-w-[1600px] mx-auto space-y-6 animate-fade-in">
 
-    <!-- Header del Dashboard -->
-    <div class="flex items-center justify-between pb-2 border-b border-gray-100">
-        <div class="flex items-center gap-3">
-            <h1 class="text-base font-bold text-gray-900 tracking-tight">Panel de Control</h1>
-            {% if user.is_staff %}
-            <div
-                class="flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase
-                {% if metrics.health.is_ok %}bg-green-50 text-green-700 border border-green-100{% else %}bg-yellow-50 text-yellow-700 border border-yellow-100{% endif %}">
-                <span
-                    class="w-1.5 h-1.5 rounded-full {% if metrics.health.is_ok %}bg-green-500{% else %}bg-yellow-500{% endif %} mr-1.5 animate-pulse"></span>
-                {{ metrics.health.status }}
-            </div>
-            {% endif %}
-        </div>
-        <div class="flex items-center gap-2">
-            {% if user.is_staff %}
-            <div class="hidden sm:flex items-center px-3 py-1 bg-white border border-gray-200 rounded-sm shadow-sm">
-                <div class="mr-2">
-                    <i class="fas fa-users text-indigo-500 text-[10px]"></i>
-                </div>
-                <div>
-                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-tighter">Sesiones</p>
-                    <p id="metric-sessions" class="text-xs font-bold text-gray-900 leading-none">{{
-                        metrics.connections.total }}</p>
-                </div>
-            </div>
-            {% endif %}
-            <button id="btn-refresh-metrics"
-                class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-[11px] font-bold rounded-sm text-gray-700 bg-white hover:bg-gray-50 transition-all uppercase tracking-wider">
-                <i class="fas fa-sync-alt mr-1.5 text-[10px]"></i>
-                Actualizar
-            </button>
-        </div>
-    </div>
-
-    {% if not user.is_staff %}
-    <!-- Welcome Card for Users -->
-    <div
-        class="relative bg-gradient-to-br from-indigo-600 to-purple-700 rounded-sm p-5 text-white shadow-sm overflow-hidden">
-        <div class="absolute inset-0 bg-grid-pattern opacity-10"></div>
-        <div class="relative z-10 flex items-center justify-between">
-            <div class="flex-1">
-                <h2 class="text-sm font-bold mb-1">¡Bienvenido, {{ user.username }}!</h2>
-                <p class="text-indigo-100 text-[10px] max-w-xl leading-relaxed">
-                    Acceso al sistema de gestión NAS. Gestiona tu perfil y accede a tus carpetas compartidas.
-                </p>
-            </div>
-            <i class="fas fa-server text-3xl opacity-20"></i>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- System Metrics Grid -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- CPU Card -->
-        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-blue-200 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-                <div class="w-7 h-7 rounded bg-blue-50 flex items-center justify-center">
-                    <i class="fas fa-microchip text-blue-600 text-[10px]"></i>
-                </div>
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">CPU</span>
-            </div>
-            <div class="flex items-baseline">
-                <p id="metric-cpu" class="text-lg font-black text-gray-900">{{ metrics.system.cpu_usage }}</p>
-                <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
-            </div>
-            <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
-                <div id="bar-cpu" class="bg-blue-600 h-1 rounded-full transition-all duration-500"
-                    style="width: {{ metrics.system.cpu_usage }}%"></div>
-            </div>
-        </div>
-
-        <!-- RAM Card -->
-        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-purple-200 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-                <div class="w-7 h-7 rounded bg-purple-50 flex items-center justify-center">
-                    <i class="fas fa-memory text-purple-600 text-[10px]"></i>
-                </div>
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">RAM</span>
-            </div>
-            <div class="flex items-baseline">
-                <p id="metric-ram" class="text-lg font-black text-gray-900">{{ metrics.system.memory_usage }}</p>
-                <p class="ml-0.5 text-[10px] font-bold text-gray-400">%</p>
-            </div>
-            <div class="mt-2 w-full bg-gray-100 rounded-full h-1">
-                <div id="bar-ram" class="bg-purple-600 h-1 rounded-full transition-all duration-500"
-                    style="width: {{ metrics.system.memory_usage }}%"></div>
-            </div>
-        </div>
-
-        <!-- Temperature Card -->
-        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-orange-200 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-                <div class="w-7 h-7 rounded bg-orange-50 flex items-center justify-center">
-                    <i class="fas fa-thermometer-half text-orange-600 text-[10px]"></i>
-                </div>
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Temp</span>
-            </div>
-            <div class="flex items-baseline">
-                <p id="metric-temp" class="text-lg font-black text-gray-900">{{ metrics.system.temperature }}</p>
-                <p class="ml-0.5 text-[10px] font-bold text-gray-400">°C</p>
-            </div>
-            <div class="mt-2 flex items-center text-[9px] text-gray-500">
-                <i class="fas fa-check-circle mr-1 text-green-500"></i>
-                Estable
-            </div>
-        </div>
-
-        <!-- Uptime Card -->
-        <div class="bg-white border border-gray-200 rounded-sm shadow-sm p-3 hover:border-green-200 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-                <div class="w-7 h-7 rounded bg-green-50 flex items-center justify-center">
-                    <i class="fas fa-clock text-green-600 text-[10px]"></i>
-                </div>
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Uptime</span>
-            </div>
-            <div class="flex items-baseline">
-                <p id="metric-uptime" class="text-lg font-black text-gray-900">{{ metrics.system.uptime_days }}</p>
-                <p class="ml-1 text-[10px] font-bold text-gray-700 uppercase">Días</p>
-            </div>
-            <div class="mt-2 flex items-center text-[9px] text-green-600 font-bold">
-                <span class="flex h-1.5 w-1.5 relative mr-1.5">
-                    <span
-                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+    <!-- Top Bar: Status & Quick Actions -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+        <div>
+            <h1 class="text-xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+                NAS Command Center
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-widest border border-blue-100">
+                    V2.1 PRO
                 </span>
-                Activo
+            </h1>
+            <p class="text-[11px] text-gray-400 font-bold uppercase tracking-tight mt-0.5">Gestión de infraestructura y recursos críticos</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div class="px-3 py-1.5 bg-white border border-gray-100 rounded-lg shadow-sm flex items-center gap-3">
+                <div class="flex flex-col items-end border-r border-gray-100 pr-3">
+                    <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Estado NAS</span>
+                    <span class="text-[10px] font-bold text-green-600 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                        ONLINE
+                    </span>
+                </div>
+                <button id="btn-refresh-metrics" class="p-1.5 hover:bg-gray-50 rounded transition-colors group">
+                    <i class="fas fa-sync-alt text-gray-400 group-hover:text-blue-500 text-[10px]"></i>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Main Content Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-
-        <!-- Left Column: Storage & Events -->
-        <div class="lg:col-span-8 space-y-4">
-
-            <!-- Storage Section -->
-            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
-                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-hdd text-gray-400 text-[10px]"></i>
-                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Almacenamiento</h3>
+    <!-- Main Performance Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        <!-- CPU Widget -->
+        <div class="bg-white rounded-lg border border-gray-100 shadow-sm p-4 relative overflow-hidden group hover:border-blue-100 transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+                        <i class="fas fa-microchip text-xs"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Procesador</h3>
+                        <p class="text-xl font-black text-gray-900 leading-none mt-0.5">
+                            <span id="metric-cpu">--</span><span class="text-[10px] font-bold text-gray-300 ml-0.5">%</span>
+                        </p>
                     </div>
                 </div>
-                <div class="p-4">
-                    <div class="mb-4">
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] font-bold text-gray-500 uppercase">Capacidad Total</span>
-                            <div class="flex items-center gap-2">
-                                <span id="metric-storage-used" class="text-[10px] font-bold text-gray-500">{{
-                                    metrics.storage.used }} / {{ metrics.storage.total }}</span>
-                                <span id="metric-storage-percent" class="text-sm font-black text-gray-900">{{
-                                    metrics.storage.percent_used }}%</span>
+            </div>
+            <div class="h-24 -mx-4 -mb-4 mt-2 relative">
+                <canvas id="chart-cpu"></canvas>
+            </div>
+        </div>
+
+        <!-- RAM Widget -->
+        <div class="bg-white rounded-lg border border-gray-100 shadow-sm p-4 relative overflow-hidden group hover:border-purple-100 transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100">
+                        <i class="fas fa-memory text-xs"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Memoria Sistema</h3>
+                        <p class="text-xl font-black text-gray-900 leading-none mt-0.5">
+                            <span id="metric-ram">--</span><span class="text-[10px] font-bold text-gray-300 ml-0.5">%</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="h-24 -mx-4 -mb-4 mt-2 relative">
+                <canvas id="chart-ram"></canvas>
+            </div>
+        </div>
+
+        <!-- Network Widget -->
+        <div class="bg-white rounded-lg border border-gray-100 shadow-sm p-4 relative overflow-hidden group hover:border-emerald-100 transition-all">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                        <i class="fas fa-network-wired text-xs"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tráfico de Red</h3>
+                        <div class="flex items-center gap-3 mt-1">
+                            <div class="flex items-center gap-1">
+                                <i class="fas fa-caret-down text-[10px] text-emerald-500"></i>
+                                <span id="network-down" class="text-[10px] font-black text-gray-700">0.0 KB/s</span>
                             </div>
-                        </div>
-                        <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div id="bar-storage"
-                                class="h-full transition-all duration-500 {% if metrics.storage.percent_used >= 90 %}bg-red-500{% elif metrics.storage.percent_used >= 75 %}bg-yellow-500{% else %}bg-indigo-600{% endif %}"
-                                style="width: {{ metrics.storage.percent_used }}%"></div>
+                            <div class="flex items-center gap-1">
+                                <i class="fas fa-caret-up text-[10px] text-amber-500"></i>
+                                <span id="network-up" class="text-[10px] font-black text-gray-700">0.0 KB/s</span>
+                            </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            <div class="h-24 -mx-4 -mb-4 mt-2 relative">
+                <canvas id="chart-network"></canvas>
+            </div>
+        </div>
 
-                    <div id="grid-volumes" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {% for vol in metrics.storage.volumes %}
-                        <div class="p-2.5 bg-gray-50/50 border border-gray-100 rounded-sm">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span class="text-[10px] font-bold text-gray-700">{{ vol.name }}</span>
-                                <span class="text-[9px] font-black text-gray-500">{{ vol.percent }}%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-1 mb-1.5">
-                                <div class="bg-gray-600 h-1 rounded-full" style="width: {{ vol.percent }}%"></div>
-                            </div>
-                            <div class="flex justify-between text-[9px] text-gray-400 font-medium">
-                                <span>{{ vol.used }} usados</span>
-                                <span>{{ vol.total }}</span>
-                            </div>
+    </div>
+
+    <!-- Secondary Grid: Storage & Technical Info -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Almacenamiento -->
+        <div class="lg:col-span-8 space-y-6">
+            <div class="bg-white rounded-lg border border-gray-100 shadow-sm p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded bg-gray-50 flex items-center justify-center text-gray-900 border border-gray-100">
+                            <i class="fas fa-hdd text-sm"></i>
                         </div>
-                        {% empty %}
-                        <div class="col-span-2 py-6 text-center text-gray-400 text-[10px]">No se detectaron volúmenes
+                        <div>
+                            <h2 class="text-base font-black text-gray-900 tracking-tight">Capacidad del Pool</h2>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Volúmenes de datos agregados</p>
                         </div>
-                        {% endfor %}
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-black text-gray-900 leading-none">
+                            <span id="metric-storage-used">--</span> 
+                            <span class="text-[10px] text-gray-300 font-bold uppercase ml-1">Usados</span>
+                        </p>
+                        <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1">
+                            Total: <span id="metric-storage-total">--</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="relative w-full h-3 bg-gray-100 rounded overflow-hidden mb-6">
+                    <div id="bar-storage" class="absolute h-full bg-blue-600 transition-all duration-700 ease-out" style="width: 0%"></div>
+                    <div class="absolute inset-0 bg-shimmer animate-shimmer opacity-10"></div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {% for vol in metrics.storage.volumes %}
+                    <div class="p-3 rounded border border-gray-100 bg-gray-50/20 hover:border-gray-200 transition-colors">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-bold text-gray-700">{{ vol.name }}</span>
+                            <span class="text-[9px] font-black text-blue-600">{{ vol.percent }}%</span>
+                        </div>
+                        <div class="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500" style="width: {{ vol.percent }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <!-- Box adicional: Info técnica -->
+                    <div class="p-3 rounded border border-dashed border-gray-200 bg-white flex flex-col justify-center">
+                        <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Status Pool</span>
+                        <span class="text-[10px] font-bold text-gray-600">RAID 5 • 4 Discos</span>
                     </div>
                 </div>
             </div>
 
-            <!-- System Events -->
-            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
-                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-list-ul text-gray-400 text-[10px]"></i>
-                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Eventos del NAS</h3>
+            <!-- Datos Técnicos Rápidos (Cuadritos) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm text-center">
+                    <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 leading-none">Temperatura</p>
+                    <div class="flex items-center justify-center gap-1.5 text-orange-500">
+                        <i class="fas fa-thermometer-half text-[10px]"></i>
+                        <span class="text-sm font-black text-gray-900"><span id="metric-temp">--</span>°C</span>
                     </div>
                 </div>
-                <div id="list-events" class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
-                    {% for log in metrics.activity %}
-                    <div class="p-3 hover:bg-gray-50/50 transition-colors">
-                        <div class="flex items-start gap-3">
-                            <div class="flex-shrink-0 mt-0.5">
-                                {% if log.level == 'err' %}
-                                <i class="fas fa-exclamation-circle text-red-500 text-[10px]"></i>
-                                {% elif log.level == 'warn' %}
-                                <i class="fas fa-exclamation-triangle text-yellow-500 text-[10px]"></i>
-                                {% else %}
-                                <i class="fas fa-info-circle text-blue-500 text-[10px]"></i>
-                                {% endif %}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-[10.5px] font-medium text-gray-800 leading-normal">{{ log.msg }}</p>
-                                <div class="mt-0.5 flex items-center gap-2 text-[9px] text-gray-400">
-                                    <span class="font-bold text-gray-500 uppercase">{{ log.user }}</span>
-                                    <span class="opacity-30">•</span>
-                                    <span>{{ log.time }}</span>
-                                </div>
-                            </div>
-                        </div>
+                
+                <div class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm text-center">
+                    <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 leading-none">Uptime</p>
+                    <div class="flex items-center justify-center gap-1.5 text-blue-500">
+                        <i class="fas fa-clock text-[10px]"></i>
+                        <span class="text-sm font-black text-gray-900"><span id="metric-uptime">--</span>d</span>
                     </div>
-                    {% empty %}
-                    <div class="p-6 text-center text-gray-400 text-[10px]">Sin eventos recientes</div>
-                    {% endfor %}
                 </div>
-                <div class="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
-                    <a href="{% url 'auditoria:list' %}"
-                        class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest">Ver
-                        Auditoría NasManager</a>
+
+                <div class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm text-center">
+                    <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 leading-none">Salud</p>
+                    <div class="flex items-center justify-center gap-1.5 text-green-500">
+                        <i class="fas fa-shield-alt text-[10px]"></i>
+                        <span class="text-[10px] font-black uppercase text-green-600">ÓPTIMO</span>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm text-center">
+                    <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 leading-none">Versión DSM</p>
+                    <div class="flex items-center justify-center gap-1.5 text-gray-400">
+                        <i class="fas fa-code-branch text-[10px]"></i>
+                        <span class="text-[10px] font-black text-gray-800">7.2.1-U3</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: Files -->
-        <div class="lg:col-span-4">
-            <div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden h-full flex flex-col">
-                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-folder-open text-gray-400 text-[10px]"></i>
-                        <h3 class="text-[11px] font-bold text-gray-700 uppercase tracking-widest">Archivos Recientes
-                        </h3>
-                    </div>
+        <!-- Archivos Recientes (Refined) -->
+        <div class="lg:col-span-4 h-full">
+            <div class="bg-white rounded-lg border border-gray-100 shadow-sm h-full flex flex-col">
+                <div class="p-4 border-b border-gray-50 flex items-center justify-between">
+                    <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-folder-open text-gray-300"></i>
+                        Recientes
+                    </h3>
+                    <span class="text-[8px] font-black text-gray-300 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">REAL-TIME</span>
                 </div>
-                <div id="list-files" class="flex-1 overflow-y-auto divide-y divide-gray-50">
+                <div class="flex-1 overflow-y-auto p-3 space-y-2">
                     {% for file in metrics.recent_files %}
-                    <div class="p-3 hover:bg-gray-50 transition-colors group">
-                        <div class="flex items-center gap-3">
-                            <div
-                                class="w-8 h-8 rounded bg-gray-50 flex items-center justify-center border border-gray-100 group-hover:bg-white transition-colors">
-                                {% if file.ext == 'pdf' %}
-                                <i class="fas fa-file-pdf text-red-500 text-[10px]"></i>
-                                {% elif file.ext in 'zip,rar,7z' %}
-                                <i class="fas fa-file-archive text-orange-400 text-[10px]"></i>
-                                {% elif file.ext in 'jpg,png,gif,svg' %}
-                                <i class="fas fa-file-image text-purple-400 text-[10px]"></i>
-                                {% elif file.ext in 'doc,docx' %}
-                                <i class="fas fa-file-word text-blue-500 text-[10px]"></i>
-                                {% elif file.ext in 'xls,xlsx' %}
-                                <i class="fas fa-file-excel text-green-600 text-[10px]"></i>
-                                {% else %}
-                                <i class="fas fa-file text-gray-300 text-[10px]"></i>
-                                {% endif %}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-[11px] font-bold text-gray-800 truncate">{{ file.name }}</p>
-                                <p class="text-[9px] text-gray-400 truncate">{{ file.path }}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[9px] font-black text-gray-600 tracking-tighter">{{ file.size }}</p>
-                                <p class="text-[8px] text-gray-400">{{ file.time|truncatechars:10 }}</p>
-                            </div>
+                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-50 group">
+                        <div class="w-8 h-8 rounded bg-white border border-gray-100 flex items-center justify-center text-[10px] group-hover:shadow-sm transition-all">
+                            {% if file.ext == 'pdf' %} <i class="fas fa-file-pdf text-red-500"></i>
+                            {% elif file.ext in 'zip,rar' %} <i class="fas fa-file-archive text-amber-500"></i>
+                            {% elif file.ext in 'jpg,png,jpeg' %} <i class="fas fa-file-image text-indigo-500"></i>
+                            {% else %} <i class="fas fa-file-alt text-gray-400"></i> {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h5 class="text-[10px] font-black text-gray-700 truncate mb-0.5">{{ file.name }}</h5>
+                            <p class="text-[8px] text-gray-400 font-bold uppercase tracking-widest">{{ file.size }} • {{ file.time|truncatechars:10 }}</p>
                         </div>
                     </div>
                     {% empty %}
-                    <div class="p-8 text-center text-gray-400 text-[10px]">No hay archivos recientes</div>
+                    <div class="flex flex-col items-center justify-center h-48 text-gray-200">
+                        <i class="fas fa-inbox text-3xl mb-2 opacity-20"></i>
+                        <p class="text-[9px] font-black uppercase tracking-widest">Sin actividad</p>
+                    </div>
                     {% endfor %}
                 </div>
-                <div class="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
-                    <a href="#"
-                        class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest">Abrir
-                        Explorador</a>
+                <div class="p-4 border-t border-gray-50">
+                    <a href="{% url 'archivos:index' %}" class="block text-center py-2 text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50/30 hover:bg-blue-50 border border-blue-50 rounded transition-all">
+                        EXPLORAR NAS
+                    </a>
                 </div>
             </div>
         </div>
+
     </div>
 </div>
 
 <style>
-    .bg-grid-pattern {
-        background-image:
-            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-        background-size: 15px 15px;
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    .animate-shimmer {
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        animation: shimmer 2s infinite;
+    }
+    .animate-spin-once {
+        animation: spin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
     }
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/components/skeleton.js"></script>
-<script src="/static/js/dashboard_metrics.js"></script>
-<script>
-    // Iniciar auto-refresh solo si la función está definida
-    if (typeof startDashboardAutoRefresh === 'function') {
-        startDashboardAutoRefresh(30000);
-    }
-</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/js/dashboard_charts.js"></script>
 {% endblock %}
