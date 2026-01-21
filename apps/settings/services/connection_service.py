@@ -318,7 +318,7 @@ class ConnectionService:
             logger.error(f"Error in ConnectionService.request({api}, {method}): {e}")
             return {'success': False, 'message': str(e)}
 
-    def logout(self, sid):
+    def logout(self, sid, session_alias='FileStation'):
         """Cierra sesión usando la ruta correcta"""
         try:
             auth_info = self._get_api_info('SYNO.API.Auth')
@@ -329,7 +329,7 @@ class ConnectionService:
                 'api': 'SYNO.API.Auth',
                 'version': 1,  # Logout suele ser v1
                 'method': 'logout',
-                'session': 'FileStation',
+                'session': session_alias,
                 '_sid': sid
             }
             requests.get(url, params=params, timeout=5, verify=False)

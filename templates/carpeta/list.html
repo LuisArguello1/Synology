@@ -1,130 +1,242 @@
 {% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %}Carpetas Compartidas - NAS Manager{% endblock %}
 
 {% block content %}
-<div class="h-full flex flex-col" x-data="{ 
-    selectedShare: null,
-    wizardOpen: false,
-    mode: 'create',
-    deleteModalOpen: false,
-    shareToDelete: null
-}">
-    <!-- Toolbar -->
-    <div class="bg-gray-100 border-b border-gray-300 px-4 py-2 flex items-center justify-between shrink-0 h-14">
-        <div class="flex space-x-2">
-            <!-- Crear -->
-            <div class="relative" x-data="{ open: false }">
-                <button @click="open = !open" class="btn-toolbar flex items-center">
-                    <i class="fas fa-plus mr-2 text-blue-600"></i>
-                    <span>Crear</span>
-                    <i class="fas fa-caret-down ml-2 text-xs"></i>
-                </button>
-                <div x-show="open" @click.away="open = false" 
-                    class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50 text-sm">
-                    <a href="#" @click.prevent="open=false; mode='create'; wizardOpen=true" class="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600">
-                        Crear carpeta compartida
-                    </a>
-                </div>
-            </div>
-
-            <!-- Editar -->
-            <button class="btn-toolbar" :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}"
-                 @click="if(selectedShare) { mode='edit'; wizardOpen=true; }">
-                <span>Editar</span>
-            </button>
-
-            <!-- Eliminar -->
-            <button @click="if(selectedShare) { shareToDelete=selectedShare; deleteModalOpen=true; }" 
-                class="btn-toolbar" :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
-                <span>Eliminar</span>
-            </button>
-
-            <!-- Cifrado -->
-            <div class="relative" x-data="{ open: false }">
-                <button @click="if(selectedShare) open = !open" class="btn-toolbar flex items-center" 
-                    :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
-                    <span>Cifrado</span>
-                    <i class="fas fa-caret-down ml-2 text-xs"></i>
-                </button>
-            </div>
-            
-            <!-- Acción -->
-            <div class="relative" x-data="{ open: false }">
-                <button @click="if(selectedShare) open = !open" class="btn-toolbar flex items-center" 
-                    :disabled="!selectedShare" :class="{'opacity-50 cursor-not-allowed': !selectedShare}">
-                    <span>Acción</span>
-                    <i class="fas fa-caret-down ml-2 text-xs"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- Filter/Search -->
-        <div class="flex items-center">
-             <div class="relative">
-                <input type="text" placeholder="Filtrar" 
-                    class="w-64 pl-8 pr-4 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500">
-                <i class="fas fa-filter absolute left-2.5 top-2 text-gray-400 text-xs"></i>
-             </div>
-             <button class="ml-2 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 border border-transparent hover:border-gray-300 rounded">
-                 <i class="fas fa-sort-amount-down"></i>
-             </button>
-        </div>
-    </div>
-
-    <!-- Table -->
-    <div class="flex-1 overflow-auto bg-white">
-        <table class="w-full table-fixed divide-y divide-gray-200">
-            <tbody class="divide-y divide-gray-100">
-                {% for share in shares %}
-                <tr class="hover:bg-blue-50 cursor-pointer transition-colors"
-                    :class="{'bg-blue-100/50': selectedShare === '{{ share.name }}'}"
-                    @click="selectedShare = '{{ share.name }}'">
-                    
-                    <td class="px-6 py-3 whitespace-nowrap">
-                        <div class="flex items-center">
-                            <!-- Icon -->
-                            <div class="flex-shrink-0 h-10 w-10 flex items-center justify-center">
-                                <i class="fas fa-folder text-yellow-500 text-3xl shadow-sm"></i>
-                                {% if share.encryption == 1 %}
-                                <i class="fas fa-lock text-[10px] text-gray-600 absolute ml-3 mt-2 bg-white rounded-full p-[1px]"></i>
-                                {% endif %}
-                            </div>
-                            <!-- Details -->
-                            <div class="ml-4">
-                                <div class="text-sm font-bold text-gray-900">{{ share.name }}</div>
-                                <div class="text-xs text-gray-500">
-                                    {{ share.vol_path|default:"/volume1"|cut:"/volume"|add:"Volumen " }} 
-                                    {% if share.desc %} - {{ share.desc }}{% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td class="px-6 py-10 text-center text-gray-500 text-sm">
-                        No hay carpetas compartidas.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="h-full flex flex-col" x-data="shareManagement()" @toast.window="addToast($event.detail.title, $event.detail.message, $event.detail.type)">
     
-    <!-- Footer / Pagination Status -->
-    <div class="bg-white border-t border-gray-200 px-4 py-2 flex justify-end items-center text-xs text-gray-600">
-        <span>{{ shares.paginator.count }} elementos</span>
-        <a href="?page={{ shares.number }}" class="ml-3 hover:text-gray-900"><i class="fas fa-sync-alt"></i></a>
+    <!-- Toast Container -->
+    <div class="fixed top-4 right-4 z-[300] w-80 space-y-2 pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="bg-white border-l-4 shadow-xl rounded p-4 pointer-events-auto flex items-start transition-all duration-300 transform"
+                 :class="{
+                    'border-green-500': toast.type === 'success',
+                    'border-red-500': toast.type === 'error',
+                    'border-blue-500': toast.type === 'info',
+                    'translate-x-0 opacity-100': true,
+                    'translate-x-full opacity-0': toast.closing
+                 }"
+                 @click="removeToast(toast.id)">
+                <div class="flex-1 mr-2">
+                    <p class="text-sm font-semibold text-gray-800" x-text="toast.title"></p>
+                    <p class="text-xs text-gray-500 mt-0.5" x-text="toast.message"></p>
+                </div>
+                <button class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 border-b border-gray-100 bg-white gap-3 sm:gap-0">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <h1 class="text-base font-bold text-gray-900 tracking-tight">{{ page_title }}</h1>
+            
+            <!-- Search Bar -->
+            <div class="relative group w-full sm:w-64">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] group-focus-within:text-blue-500 transition-colors"></i>
+                <input type="text" x-model="searchQuery" placeholder="Buscar carpeta..." 
+                       class="pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-sm text-xs w-full focus:bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all outline-none">
+            </div>
+        </div>
+        
+        <div class="flex items-center justify-between sm:justify-end gap-2">
+            <!-- Selection Actions -->
+            <div x-show="selection.length > 0" x-transition class="flex items-center gap-2 sm:mr-4 sm:pr-4 sm:border-r sm:border-gray-100" x-cloak>
+                <span class="text-[10px] text-gray-500 font-medium whitespace-nowrap">
+                    <span x-text="selection.length"></span> sel.
+                </span>
+                <button @click="confirmDeleteSelected()" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors text-[11px] font-semibold flex items-center gap-1.5">
+                    <i class="fas fa-trash-alt text-[10px]"></i> <span class="hidden sm:inline">Eliminar</span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button @click="refreshList()" class="text-gray-400 hover:text-gray-600 p-1.5 transition-colors" title="Recargar">
+                    <i class="fas fa-sync-alt text-[11px]" :class="{'fa-spin': refreshing}"></i>
+                </button>
+                
+                <button @click="openWizard('create')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-sm text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                    <i class="fas fa-plus"></i>
+                    <span class="hidden sm:inline">Crear Carpeta</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="flex-1 overflow-auto bg-gray-50 p-4">
+        <div class="w-full bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden mb-3">
+            <table class="w-full table-fixed divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left w-10">
+                            <input type="checkbox" @change="toggleAll()" :checked="isAllSelected()"
+                                   class="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 h-3 w-3">
+                        </th>
+                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Información de Carpeta</th>
+                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden md:table-cell">Volumen</th>
+                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden lg:table-cell">Descripción</th>
+                        <th scope="col" class="px-4 py-2 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest w-24">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                    <template x-for="share in filteredShares" :key="share.name">
+                        <tr class="hover:bg-gray-50 group transition-colors" :class="{'bg-blue-50/30': isSelected(share.name)}">
+                            <td class="px-4 py-2">
+                                <input type="checkbox" :checked="isSelected(share.name)" @change="toggleSelection(share.name)"
+                                       class="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 h-3 w-3">
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 relative">
+                                        <i class="fas fa-folder text-yellow-500 text-2xl drop-shadow-sm"></i>
+                                        <template x-if="share.encryption === 1">
+                                            <i class="fas fa-lock text-[8px] text-gray-600 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5 border border-gray-200 shadow-sm"></i>
+                                        </template>
+                                    </div>
+                                    <div class="ml-3 min-w-0">
+                                        <div class="text-[11px] font-bold text-gray-900 leading-tight truncate" x-text="share.name"></div>
+                                        <div class="text-[9px] text-gray-400 font-medium md:hidden truncate" x-text="share.vol_path"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap hidden md:table-cell">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.5 rounded-sm bg-gray-100 text-[9px] font-bold text-gray-600 border border-gray-200" x-text="share.vol_path.replace('/volume', 'Volumen ')"></span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap hidden lg:table-cell">
+                                <div class="text-[10px] text-gray-500 font-medium truncate max-w-xs" x-text="share.desc || '-'"></div>
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap text-right text-[10px] font-medium">
+                                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button @click="openWizard('edit', share.name)" class="w-7 h-7 flex items-center justify-center rounded-sm text-indigo-600 hover:bg-indigo-50 transition-colors" title="Editar">
+                                        <i class="fas fa-pencil-alt text-[10px]"></i>
+                                    </button>
+                                    <button @click="confirmDelete(share.name)" class="w-7 h-7 flex items-center justify-center rounded-sm text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
+                                        <i class="fas fa-trash-alt text-[10px]"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    
+                    <tr x-show="filteredShares.length === 0">
+                        <td colspan="5" class="px-4 py-10 text-center">
+                            <div class="flex flex-col items-center justify-center">
+                                <i class="fas fa-folder-open text-2xl text-gray-200 mb-3 block"></i>
+                                <p class="text-[11px] text-gray-400 font-medium">No se encontraron carpetas compartidas.</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Reusable Pagination Component -->
+        {% include 'components/pagination.html' with page_obj=page_obj %}
+        
     </div>
 
     <!-- Modals -->
     {% include 'carpeta/modals/share_wizard.html' %}
     {% include 'carpeta/modals/confirm_delete.html' %}
-    
+
 </div>
 
-<style>
-    .btn-toolbar {
-        @apply px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none transition-colors;
+<script>
+    function shareManagement() {
+        return {
+            shares: {{ shares_json|safe|default:"[]" }},
+            searchQuery: '',
+            selection: [],
+            wizardOpen: false,
+            deleteModalOpen: false,
+            mode: 'create', // create | edit
+            selectedShare: null,
+            refreshing: false,
+            toasts: [],
+
+            get filteredShares() {
+                const q = this.searchQuery.toLowerCase();
+                return this.shares.filter(s => 
+                    s.name.toLowerCase().includes(q) || 
+                    (s.desc && s.desc.toLowerCase().includes(q))
+                );
+            },
+
+            addToast(title, message, type = 'info') {
+                const id = Date.now();
+                this.toasts.push({ id, title, message, type, closing: false });
+                setTimeout(() => this.removeToast(id), 5000);
+            },
+
+            removeToast(id) {
+                const toast = this.toasts.find(t => t.id === id);
+                if (toast) {
+                    toast.closing = true;
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 300);
+                }
+            },
+
+            refreshList() {
+                this.refreshing = true;
+                window.location.reload();
+            },
+
+            isSelected(name) { return this.selection.includes(name); },
+            
+            toggleSelection(name) {
+                if(this.isSelected(name)) this.selection = this.selection.filter(n => n !== name);
+                else this.selection.push(name);
+            },
+
+            isAllSelected() {
+                const filtered = this.filteredShares;
+                return filtered.length > 0 && filtered.every(s => this.isSelected(s.name));
+            },
+
+            toggleAll() {
+                if(this.isAllSelected()) {
+                    const filteredNames = this.filteredShares.map(s => s.name);
+                    this.selection = this.selection.filter(n => !filteredNames.includes(n));
+                } else {
+                    this.filteredShares.forEach(s => {
+                        if(!this.isSelected(s.name)) this.selection.push(s.name);
+                    });
+                }
+            },
+
+            confirmDeleteSelected() {
+                this.selectedShare = this.selection;
+                this.deleteModalOpen = true;
+            },
+
+            openWizard(mode, shareName = null) {
+                this.mode = mode;
+                this.selectedShare = shareName;
+                this.wizardOpen = true;
+                // Despachar evento para inicializar wizard
+                window.dispatchEvent(new CustomEvent('share-wizard-init', { 
+                    detail: { mode: mode, shareName: shareName } 
+                }));
+            },
+
+            confirmDelete(shareName) {
+                this.selectedShare = [shareName];
+                this.deleteModalOpen = true;
+            },
+            
+            closeDelete() {
+                this.deleteModalOpen = false;
+                this.selectedShare = null;
+            }
+        }
     }
-</style>
+</script>
 {% endblock %}

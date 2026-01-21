@@ -1,0 +1,23 @@
+[
+    {
+        "name": "Prueba",
+        "desc": "",
+        "vol_path": "/volume1",
+        "recyclebin": true,
+        "encryption": 0,
+        "quota_value": 0
+    },
+    {
+        "name": "pruebota",
+        "desc": "",
+        "vol_path": "/volume1",
+        "recyclebin": true,
+        "encryption": 0,
+        "quota_value": 20480,
+        "enable_share_compress": false,
+        "enable_share_cow": true,
+        "browseable": true,
+        "hide_unreadable": false,
+        "adv_recycle_bin_admin_only": false
+    }
+]

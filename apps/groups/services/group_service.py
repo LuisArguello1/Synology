@@ -245,17 +245,27 @@ class GroupService:
             return {'success': False, 'message': 'Group not found'}
 
         # Online implementation
-        # Primero valida si es de sistema (mejor no borrar admins) para mantenerse conssitente con el NAS
+        # Primero valida si es de sistema
         group = self.get_group(name)
         if group and group.get('is_system', False):
              return {'success': False, 'message': 'Cannot delete system group'}
              
-        return self.connection.request(
-            api='SYNO.Core.Group',
-            method='delete',
-            version=1,
-            params={'name': name}
-        )
+        admin_conn = ConnectionService(self.config)
+        auth_result = admin_conn.authenticate(session_alias='DSM')
+        if not auth_result.get('success'):
+            return auth_result
+            
+        current_sid = auth_result.get('sid')
+        try:
+            return admin_conn.request(
+                api='SYNO.Core.Group',
+                method='delete',
+                version=1,
+                params={'name': name}
+            )
+        finally:
+            if admin_conn and current_sid:
+                admin_conn.logout(current_sid, session_alias='DSM')
 
     def apply_group_settings(self, name, data, items_results=None, conn=None):
         """
@@ -267,14 +277,25 @@ class GroupService:
         # 1. Asignar Permisos de Carpetas
         folder_perms = data.get('folder_permissions', {})
         for share_name, perm in folder_perms.items():
-            if perm in ['ro', 'rw', 'none']:
+            # Synology usa 'na' para No Access, 'ro' para Read Only y 'rw' para Read/Write
+            if perm in ['ro', 'rw', 'na']:
                 perm_params = {
-                    'path': f"/{share_name}" if not share_name.startswith('/') else share_name,
                     'name': name,
+                    'user_name': '', # Vacío para grupos
+                    'group_name': name,
                     'is_group': 'true',
-                    'privilege': perm 
+                    'privilege': perm,
+                    'share_name': share_name
                 }
-                active_conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=perm_params)
+                # Intentamos con 'share_name' y con 'name' (path-style) para mayor compatibilidad
+                try:
+                    resp = active_conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=perm_params)
+                    if not resp.get('success'):
+                        # Fallback: intentar estilo de ruta
+                        perm_params['name'] = share_name
+                        active_conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=perm_params)
+                except Exception as e:
+                    logger.error(f"Error setting folder permission for {share_name}: {e}")
 
         # 2. Asignar Permisos de Aplicaciones
         app_perms = data.get('app_permissions', {}) 
@@ -332,44 +353,32 @@ class GroupService:
         
         # Estrategias de parámetros comunes
         strategies = [
-            {'g': 'group', 'm': 'member',  'fmt': member_str},
-            {'g': 'group', 'm': 'members', 'fmt': member_str},
-            {'g': 'name',  'm': 'member',  'fmt': member_str},
-            {'g': 'name',  'm': 'members', 'fmt': member_str},
-            {'g': 'group', 'm': 'user',    'fmt': member_str},
-            {'g': 'group', 'm': 'users',   'fmt': member_str},
-            {'g': 'group', 'm': 'member',  'fmt': member_json},
+            # Estrategias con string (CSV)
+            {'g': 'group', 'm': 'member',  'fmt': member_str, 'method': 'set'},
+            {'g': 'group', 'm': 'members', 'fmt': member_str, 'method': 'set'},
+            {'g': 'name',  'm': 'member',  'fmt': member_str, 'method': 'set'},
+            {'g': 'group', 'm': 'user',    'fmt': member_str, 'method': 'set'},
+            # Estrategias con JSON
+            {'g': 'group', 'm': 'member',  'fmt': member_json, 'method': 'set'},
+            {'g': 'group', 'm': 'user',    'fmt': member_json, 'method': 'set'},
         ]
         
-        # Intentamos 'set'
+        # Intentamos con 'set' primero
         for s in strategies:
             params = {s['g']: group_name, s['m']: s['fmt']}
-            print(f"DEBUG: Trial SYNO.Core.Group.Member:set ({s['g']}={group_name}, {s['m']}=...)")
-            resp = admin_conn.request('SYNO.Core.Group.Member', 'set', version=1, params=params)
+            print(f"DEBUG: Trial SYNO.Core.Group.Member:{s['method']} ({s['g']}={group_name}, {s['m']}=...)")
+            resp = admin_conn.request('SYNO.Core.Group.Member', s['method'], version=1, params=params)
             if resp.get('success'):
-                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']}")
+                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']} ({s['method']})")
                 return True
-            else:
-                err = resp.get('error', {})
-                print(f"DEBUG: Trial failed: Code {err.get('code')} - {json.dumps(err)}")
 
-        # Intentamos 'add' como fallback
+        # Fallback a 'add' si 'set' no funcionó
         for s in strategies:
-             params = {s['g']: group_name, s['m']: s['fmt']}
-             print(f"DEBUG: Trial SYNO.Core.Group.Member:add ({s['g']}={group_name}, {s['m']}=...)")
-             resp = admin_conn.request('SYNO.Core.Group.Member', 'add', version=1, params=params)
-             if resp.get('success'):
-                 print(f"DEBUG: SUCCESS (add) with {s['g']}/{s['m']}")
-                 return True
-
-        # Último recurso: intentar 'update' del grupo con parámetro 'member' o 'members'
-        print("DEBUG: Trials exhausted. Attempting SYNO.Core.Group:update with member list...")
-        for s in [{'m': 'member'}, {'m': 'members'}, {'m': 'user'}]:
-            params = {'name': group_name, s['m']: member_str}
-            resp = admin_conn.request('SYNO.Core.Group', 'update', version=1, params=params)
+            params = {s['g']: group_name, s['m']: s['fmt']}
+            resp = admin_conn.request('SYNO.Core.Group.Member', 'add', version=1, params=params)
             if resp.get('success'):
-                 print(f"DEBUG: SUCCESS (Core.Group:update) with {s['m']}")
-                 return True
+                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']} (add)")
+                return True
 
         return False
 
@@ -441,19 +450,37 @@ class GroupService:
             return {'success': False, 'message': str(e)}
         finally:
             if admin_conn and current_sid:
-                admin_conn.logout(current_sid)
+                admin_conn.logout(current_sid, session_alias='DSM')
 
-    def update_group_wizard(self, data):
+    def update_group_wizard(self, name, data):
         """Orquestador de ACTUALIZACIÓN con permisos administrativos"""
-        print(f"DEBUG: update_group_wizard RECEIVED DATA: {json.dumps(data)}")
+        print(f"DEBUG: update_group_wizard RECEIVED DATA for {name}: {json.dumps(data)}")
         info = data.get('info', {})
-        name = info.get('name') or data.get('name')
         
         if not name:
              return {'success': False, 'message': 'Name is required'}
 
         if getattr(settings, 'NAS_OFFLINE_MODE', False):
-            return {'success': True, 'message': 'Update simulated'}
+            groups = self._get_sim_data()
+            found = False
+            for g in groups:
+                if g['name'] == name:
+                    # Actualizar campos básicos
+                    desc = info.get('description') or data.get('description')
+                    if desc is not None: g['description'] = desc
+                    
+                    # Actualizar relaciones si vienen en la data
+                    if 'members' in data: g['members'] = data['members']
+                    if 'folder_permissions' in data: g['folder_permissions'] = data['folder_permissions']
+                    if 'quotas' in data: g['quotas'] = data['quotas']
+                    if 'app_permissions' in data: g['app_permissions'] = data['app_permissions']
+                    found = True
+                    break
+            
+            if found:
+                self._save_sim_data(groups)
+                return {'success': True, 'message': f'Group {name} updated (Simulated)'}
+            return {'success': False, 'message': 'Group not found in simulation'}
 
         admin_conn = None
         current_sid = None
@@ -487,7 +514,7 @@ class GroupService:
             return {'success': False, 'message': str(e)}
         finally:
             if admin_conn and current_sid:
-                admin_conn.logout(current_sid)
+                admin_conn.logout(current_sid, session_alias='DSM')
 
     def get_group_details(self, name):
         """Alias para get_group para compatibilidad con vistas"""

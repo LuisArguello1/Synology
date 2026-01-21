@@ -1,8 +1,0 @@
-En .env hay esta variable para programar aunque no este conectados al
-synology de la universidad cuando esta en TRUE esta en modo offline
-pero cuando esta en FALSE esta en modo online y se conecta al synology de la universidad
-
-NAS_OFFLINE_MODE=True
-
-Si llegas a cambia de True a False, reinicia el servidor para que 
-los cambios se apliquen.

@@ -124,6 +124,8 @@ class GroupExportView(View):
     def post(self, request, *args, **kwargs):
         group_name = request.POST.get('name')
         if not group_name:
+             if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
+                 return JsonResponse({'success': False, 'message': 'Nombre de grupo no especificado'})
              messages.error(request, 'Nombre de grupo no especificado')
              return redirect('groups:list')
 
@@ -131,9 +133,13 @@ class GroupExportView(View):
         result = service.delete_group(group_name)
         
         if result['success']:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
+                return JsonResponse({'success': True, 'message': f'Grupo "{group_name}" eliminado correctamente.'})
             messages.success(request, f'Grupo "{group_name}" eliminado correctamente.')
         else:
-            messages.error(request, f'Error al eliminar grupo: {result.get('message')}')
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
+                return JsonResponse({'success': False, 'message': f'Error al eliminar grupo: {result.get("message")}'})
+            messages.error(request, f'Error al eliminar grupo: {result.get("message")}')
             
         return redirect('groups:list')
 
@@ -180,7 +186,8 @@ class GroupWizardAPIView(View):
             if mode == 'create':
                 result = service.create_group(data)
             else:
-                 result = service.update_group_wizard(data)
+                 group_name = data.get('info', {}).get('name') or data.get('name')
+                 result = service.update_group_wizard(group_name, data)
             
             print(f"DEBUG: Wizard Result: {json.dumps(result)}")
             return JsonResponse(result)

@@ -1,58 +1,61 @@
 <div x-show="currentStep === 4" class="space-y-4">
     
-    <div class="bg-white border border-gray-200 rounded overflow-hidden">
-        <table class="w-full text-left">
-            <thead class="bg-gray-50 border-b border-gray-200">
+    <div class="bg-white border border-gray-100 rounded-sm overflow-hidden shadow-sm">
+        <table class="w-full text-left table-fixed">
+            <thead class="bg-gray-50 border-b border-gray-100">
                 <tr>
-                    <th class="px-4 py-2 text-xs font-semibold text-gray-600 uppercase w-1/3">Elemento</th>
-                    <th class="px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Valor</th>
+                    <th class="px-4 py-2 text-[10px] font-black text-gray-500 uppercase tracking-widest w-1/3">Configuración</th>
+                    <th class="px-4 py-2 text-[10px] font-black text-gray-500 uppercase tracking-widest">Valor</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody class="divide-y divide-gray-50">
                 <!-- Nombre -->
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-sm font-medium text-gray-700">Nombre</td>
-                    <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.info.name || ''"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nombre</td>
+                    <td class="px-4 py-2 text-[11px] font-bold text-gray-900" x-text="formData.info.name || ''"></td>
                 </tr>
                 <!-- Descripción -->
-                <tr class="hover:bg-gray-50 bg-gray-50/50">
-                    <td class="px-4 py-2 text-sm font-medium text-gray-700">Descripción</td>
-                    <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.info.description || ''"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Descripción</td>
+                    <td class="px-4 py-2 text-[11px] font-medium text-gray-600 italic" x-text="formData.info.description || 'Sin descripción'"></td>
                 </tr>
                 <!-- Ubicación -->
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-sm font-medium text-gray-700">Ubicación</td>
-                    <td class="px-4 py-2 text-sm text-gray-800" x-text="(formData.info.volume || '').replace('/volume', 'Volumen ') + ' (btrfs)'"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ubicación</td>
+                    <td class="px-4 py-2 text-[11px] font-bold text-blue-600" x-text="(formData.info.volume || '').replace('/volume', 'Volumen ')"></td>
                 </tr>
                 <!-- Visibilidad -->
-                <tr class="hover:bg-gray-50 bg-gray-50/50">
-                     <td class="px-4 py-2 text-sm font-medium text-gray-700">Visibilidad</td>
-                     <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.info.hide_network ? 'Oculto en red' : 'Visible'"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                     <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Visibilidad</td>
+                     <td class="px-4 py-2 text-[11px] font-bold" :class="formData.info.hide_network ? 'text-orange-500' : 'text-green-600'" 
+                         x-text="formData.info.hide_network ? 'Oculto en red' : 'Visible en red'"></td>
                 </tr>
                 <!-- Papelera -->
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-sm font-medium text-gray-700">Papelera de reciclaje</td>
-                    <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.info.recyclebin ? (formData.info.admin_only ? 'Habilitada, solo administradores' : 'Habilitada') : 'Deshabilitada'"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Papelera</td>
+                    <td class="px-4 py-2 text-[11px] font-bold text-gray-700" x-text="formData.info.recyclebin ? (formData.info.admin_only ? 'Habilitada (Solo Admin)' : 'Habilitada') : 'Deshabilitada'"></td>
                 </tr>
                 <!-- Cifrado -->
-                 <tr class="hover:bg-gray-50 bg-gray-50/50">
-                     <td class="px-4 py-2 text-sm font-medium text-gray-700">Cifrado</td>
-                     <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.security.encrypted ? 'Habilitado' : 'Deshabilitado'"></td>
+                 <tr class="hover:bg-gray-50/50 transition-colors">
+                     <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Cifrado</td>
+                     <td class="px-4 py-2 text-[11px] font-bold" :class="formData.security.encrypted ? 'text-red-500' : 'text-gray-400'"
+                         x-text="formData.security.encrypted ? 'Protegido con clave' : 'Sin cifrar'"></td>
                 </tr>
                 <!-- Integridad -->
-                <tr class="hover:bg-gray-50">
-                     <td class="px-4 py-2 text-sm font-medium text-gray-700">Protección de integridad</td>
-                     <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.advanced.checksum ? 'Habilitado' : 'Deshabilitado'"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                     <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Integridad</td>
+                     <td class="px-4 py-2 text-[11px] font-bold text-gray-700" x-text="formData.advanced.checksum ? 'Habilitado' : 'Deshabilitado'"></td>
                 </tr>
                 <!-- Compresión -->
-                 <tr class="hover:bg-gray-50 bg-gray-50/50">
-                     <td class="px-4 py-2 text-sm font-medium text-gray-700">Compresión de archivos</td>
-                     <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.advanced.compression ? 'Habilitado' : 'Deshabilitado'"></td>
+                 <tr class="hover:bg-gray-50/50 transition-colors">
+                     <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Compresión</td>
+                     <td class="px-4 py-2 text-[11px] font-bold text-gray-700" x-text="formData.advanced.compression ? 'Habilitado' : 'Deshabilitado'"></td>
                 </tr>
                  <!-- Cuota -->
-                <tr class="hover:bg-gray-50">
-                     <td class="px-4 py-2 text-sm font-medium text-gray-700">Cuota</td>
-                     <td class="px-4 py-2 text-sm text-gray-800" x-text="formData.advanced.quota_enabled ? (formData.advanced.quota_size + ' ' + formData.advanced.quota_unit) : 'Deshabilitado'"></td>
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                     <td class="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Cuota de disco</td>
+                     <td class="px-4 py-2 text-[11px] font-bold text-gray-900" 
+                         x-text="formData.advanced.quota_enabled ? (formData.advanced.quota_size + ' ' + formData.advanced.quota_unit) : 'Sin límite'"></td>
                 </tr>
             </tbody>
         </table>
