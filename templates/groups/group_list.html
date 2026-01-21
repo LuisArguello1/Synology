@@ -3,31 +3,36 @@
 
 {% block content %}
 <div class="h-full flex flex-col" x-data="groupManagement()">
-    
+
     <!-- Toolbar -->
-    <div class="px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 border-b border-gray-100 bg-white gap-3 sm:gap-0">
+    <div
+        class="px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 border-b border-gray-100 bg-white gap-3 sm:gap-0">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <h1 class="text-base font-bold text-gray-900 tracking-tight">Grupos</h1>
-            
+
             <!-- Search Bar -->
             <div class="relative group w-full sm:w-64">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] group-focus-within:text-blue-500 transition-colors"></i>
-                <input type="text" x-model="search" placeholder="Buscar..." 
-                       class="pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-sm text-xs w-full focus:bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all outline-none">
+                <i
+                    class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] group-focus-within:text-blue-500 transition-colors"></i>
+                <input type="text" x-model="search" placeholder="Buscar..."
+                    class="pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-sm text-xs w-full focus:bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all outline-none">
             </div>
         </div>
-        
+
         <div class="flex items-center justify-end gap-2 text-right">
-            <button @click="refreshList()" class="text-gray-400 hover:text-gray-600 p-1.5 transition-colors" title="Actualizar">
+            <button @click="refreshList()" class="text-gray-400 hover:text-gray-600 p-1.5 transition-colors"
+                title="Actualizar">
                 <i class="fas fa-sync-alt text-[11px]" :class="{'fa-spin': loading}"></i>
             </button>
-            
-            <button @click="openCreateWizard()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-sm text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95">
+
+            <button @click="openCreateWizard()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-sm text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95">
                 <i class="fas fa-plus"></i>
                 <span class="hidden sm:inline">Crear Grupo</span>
             </button>
 
-            <button @click="exportGroups()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3 py-1.5 rounded-sm text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95">
+            <button @click="exportGroups()"
+                class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3 py-1.5 rounded-sm text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95">
                 <i class="fas fa-file-export text-[10px]"></i>
                 <span class="hidden sm:inline">Exportar</span>
             </button>
@@ -40,34 +45,49 @@
             <table class="w-full table-fixed divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest w-20">Estado</th>
-                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Nombre</th>
-                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden md:table-cell">Descripción</th>
-                        <th scope="col" class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest w-24 hidden sm:table-cell">Miembros</th>
-                        <th scope="col" class="px-4 py-2 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest w-24">Acciones</th>
+                        <th scope="col"
+                            class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest w-20">
+                            Estado</th>
+                        <th scope="col"
+                            class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                            Nombre</th>
+                        <th scope="col"
+                            class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden md:table-cell">
+                            Descripción</th>
+                        <th scope="col"
+                            class="px-4 py-2 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest w-24 hidden sm:table-cell">
+                            Miembros</th>
+                        <th scope="col"
+                            class="px-4 py-2 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest w-24">
+                            Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
                     <template x-for="group in filteredGroups" :key="group.name">
                         <tr class="hover:bg-gray-50 group transition-colors">
                             <td class="px-4 py-2 whitespace-nowrap">
-                                <span class="inline-flex items-center justify-center h-5 px-1.5 rounded-sm text-[9px] font-bold border"
+                                <span
+                                    class="inline-flex items-center justify-center h-5 px-1.5 rounded-sm text-[9px] font-bold border"
                                     :class="group.is_system ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-green-50 text-green-600 border-green-100'">
                                     <span x-text="group.is_system ? 'SISTEMA' : 'NORMAL'"></span>
                                 </span>
                             </td>
                             <td class="px-4 py-2 whitespace-nowrap">
                                 <div class="flex items-center">
-                                    <div class="flex-shrink-0 h-7 w-7 rounded-sm bg-blue-50 flex items-center justify-center text-blue-600 font-bold border border-blue-100 text-[10px]" x-text="group.name.charAt(0).toUpperCase()">
+                                    <div class="flex-shrink-0 h-7 w-7 rounded-sm bg-blue-50 flex items-center justify-center text-blue-600 font-bold border border-blue-100 text-[10px]"
+                                        x-text="group.name.charAt(0).toUpperCase()">
                                     </div>
                                     <div class="ml-3 min-w-0">
-                                        <div class="text-[11px] font-bold text-gray-900 leading-tight truncate" x-text="group.name"></div>
-                                        <div class="text-[9px] text-gray-400 font-medium md:hidden truncate" x-text="group.description || 'Sin descripción'"></div>
+                                        <div class="text-[11px] font-bold text-gray-900 leading-tight truncate"
+                                            x-text="group.name"></div>
+                                        <div class="text-[9px] text-gray-400 font-medium md:hidden truncate"
+                                            x-text="group.description || 'Sin descripción'"></div>
                                     </div>
                                 </div>
                             </td>
                             <td class="px-4 py-2 whitespace-nowrap hidden md:table-cell">
-                                <div class="text-[10px] text-gray-600 font-medium truncate max-w-xs" x-text="group.description || '-'"></div>
+                                <div class="text-[10px] text-gray-600 font-medium truncate max-w-xs"
+                                    x-text="group.description || '-'"></div>
                             </td>
                             <td class="px-4 py-2 whitespace-nowrap hidden sm:table-cell">
                                 <div class="text-[10px] text-gray-500 font-medium flex items-center gap-1.5">
@@ -76,26 +96,28 @@
                                 </div>
                             </td>
                             <td class="px-4 py-2 whitespace-nowrap text-right text-[10px] font-medium">
-                                <div class="flex items-center justify-end gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button @click="openEditWizard(group)" class="w-7 h-7 flex items-center justify-center rounded-sm text-indigo-600 hover:bg-indigo-50 transition-colors" title="Editar">
+                                <div
+                                    class="flex items-center justify-end gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button @click="openEditWizard(group)"
+                                        class="w-7 h-7 flex items-center justify-center rounded-sm text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                        title="Editar">
                                         <i class="fas fa-pencil-alt text-[10px]"></i>
                                     </button>
-                                    <button @click="confirmDelete(group)" 
-                                            class="w-7 h-7 flex items-center justify-center rounded-sm transition-colors"
-                                            :class="group.is_system ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'"
-                                            :disabled="group.is_system"
-                                            title="Eliminar">
+                                    <button @click="confirmDelete(group)"
+                                        class="w-7 h-7 flex items-center justify-center rounded-sm transition-colors"
+                                        :class="group.is_system ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'"
+                                        :disabled="group.is_system" title="Eliminar">
                                         <i class="fas fa-trash-alt text-[10px]"></i>
                                     </button>
                                 </div>
                             </td>
                         </tr>
                     </template>
-                    
+
                     <!-- Empty State -->
                     <tr x-show="filteredGroups.length === 0">
                         <td colspan="5" class="px-4 py-12 text-center text-gray-500">
-                             <div x-show="loading" class="flex flex-col items-center">
+                            <div x-show="loading" class="flex flex-col items-center">
                                 <i class="fas fa-circle-notch fa-spin text-xl text-blue-500 mb-2"></i>
                                 <p class="text-[10px] font-medium">Cargando grupos...</p>
                             </div>
@@ -108,7 +130,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         <!-- Pagination (Simplified for now) -->
         <div class="mt-2 flex items-center justify-between">
             <p class="text-[10px] text-gray-400 font-medium" x-show="groups.length > 0">
@@ -119,7 +141,7 @@
 
     <!-- Modals -->
     {% include "groups/modals/group_wizard.html" %}
-    
+
     <!-- Delete Confirmation (SweetAlert used instead of template for simplicity and consistency with Wizard) -->
 
 </div>
@@ -134,8 +156,8 @@
             get filteredGroups() {
                 if (!this.search) return this.groups;
                 const q = this.search.toLowerCase();
-                return this.groups.filter(g => 
-                    g.name.toLowerCase().includes(q) || 
+                return this.groups.filter(g =>
+                    g.name.toLowerCase().includes(q) ||
                     (g.description && g.description.toLowerCase().includes(q))
                 );
             },
@@ -154,9 +176,9 @@
                 // Checking views.py: GroupListView returns Template currently. 
                 // We should add a fetch method? Or bootstrap in script.
                 // Let's rely on bootstrapping if `groups` context is passed, otherwise fetch.
-                
+
                 // Better approach for Single Page feel: Fetch JSON.
-                 fetch('{% url "groups:list" %}?format=json') 
+                fetch('{% url "groups:list" %}?format=json')
                     .then(r => r.json())
                     .then(data => {
                         this.groups = data.groups;
@@ -164,7 +186,7 @@
                     .catch(e => console.error("Error loading groups", e))
                     .finally(() => this.loading = false);
             },
-            
+
             refreshList() {
                 this.loadGroups();
             },
@@ -181,10 +203,10 @@
                     detail: { mode: 'edit', groupName: group.name }
                 }));
             },
-            
+
             confirmDelete(group) {
-                if(group.is_system) return;
-                
+                if (group.is_system) return;
+
                 Swal.fire({
                     title: '¿Eliminar grupo?',
                     text: `Se eliminará el grupo "${group.name}". Esta acción no se puede deshacer.`,
@@ -205,23 +227,37 @@
                 // Post to delete endpoint
                 const formData = new FormData();
                 formData.append('name', name);
-                
-                fetch('{% url "groups:delete" %}', {
+
+                fetch('{% url "groups:delete" %}?format=json', {
                     method: 'POST',
-                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
                     body: formData
                 })
-                .then(r => r.json())
-                .then(resp => {
-                    if(resp.success) {
-                        Swal.fire('Eliminado', 'El grupo ha sido eliminado.', 'success');
-                        this.loadGroups();
-                    } else {
-                        Swal.fire('Error', resp.message, 'error');
-                    }
-                });
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => {
+                                throw new Error(`HTTP ${response.status}: ${text}`);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(resp => {
+                        if (resp.success) {
+                            Swal.fire('Eliminado', 'El grupo ha sido eliminado.', 'success');
+                            this.loadGroups();
+                        } else {
+                            Swal.fire('Error', resp.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Delete error:', error);
+                        Swal.fire('Error', `No se pudo procesar la respuesta del servidor: ${error.message}`, 'error');
+                    });
             },
-            
+
             exportGroups() {
                 window.location.href = '{% url "groups:export" %}';
             }

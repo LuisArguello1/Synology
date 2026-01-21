@@ -39,10 +39,14 @@ class ConnectionService:
         
         # Cache para rutas de API descubiertas
         self.api_paths = {}
+        self._sid = getattr(config, 'last_sid', None) if config else None
+        self._synotoken = None
+        self._did = None
+        self.session = requests.Session() # Usar sesión persistente para cookies
 
-    def get_sid(self):
-        """Devuelve el SID actual si existe"""
-        return getattr(self, '_sid', None)
+    def get_token(self):
+        """Devuelve el SynoToken actual si existe"""
+        return getattr(self, '_synotoken', None)
     
     def get_base_url(self):
         """Obtiene URL base sin slash final"""
@@ -209,8 +213,10 @@ class ConnectionService:
                 'method': 'login',
                 'account': self.config.admin_username,
                 'passwd': self.config.admin_password,
-                'session': session_alias,   # Configurable: FileStation o DSM
-                'format': 'sid'             # Obtenemos SID en JSON
+                'session': session_alias,
+                'format': 'sid',
+                'enable_device_token': 'yes', # Solicitar DID
+                'device_name': 'SynologyManager_App'
             }
             
             response = requests.get(url, params=params, timeout=15, verify=False)
@@ -219,12 +225,19 @@ class ConnectionService:
             
             if data.get('success'):
                 logger.info("✅ Login exitoso")
-                self._sid = data['data']['sid'] # Guardar SID en la instancia
+                self._sid = data['data']['sid'] 
+                self._synotoken = data['data'].get('synotoken')
+                self._did = data['data'].get('did')
+                
+                # Inyectar DID en la sesión de cookies
+                if self._did:
+                    self.session.cookies.set('did', self._did)
+                
                 return {
                     'success': True,
-                    'sid': data['data']['sid'],
-                    'synotoken': data.get('data', {}).get('synotoken'),
-                    'did': data.get('data', {}).get('did')
+                    'sid': self._sid,
+                    'synotoken': self._synotoken,
+                    'did': self._did
                 }
             else:
                 error_code = data.get('error', {}).get('code')
@@ -282,10 +295,21 @@ class ConnectionService:
                 'method': method
             }
             
-            # 4. Inyectar SID (Prioridad: Argumento > self._sid)
+            # 4. Inyectar SID y Token
             active_sid = sid or getattr(self, '_sid', None)
+            headers = {
+                'Referer': f"{self.get_base_url()}/",
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+
             if active_sid:
                 control_params['_sid'] = active_sid
+            
+            # Inyectar SynoToken si está disponible (CSRF Protection)
+            active_token = getattr(self, '_synotoken', None)
+            if active_token:
+                control_params['SynoToken'] = active_token
+                headers['X-SYNO-TOKEN'] = active_token
                 
             # 5. Ejecutar Request
             # Nota: Synology suele aceptar todo por GET o POST. 
@@ -295,15 +319,20 @@ class ConnectionService:
             if method in ['query', 'list', 'get']:
                 # En GET, todo va en la URL
                 all_params = {**control_params, **params}
-                resp = requests.get(url, params=all_params, timeout=30, verify=False)
+                resp = self.session.get(url, params=all_params, headers=headers, timeout=30, verify=False)
             else:
                 # En POST, control en URL, data en BODY
-                resp = requests.post(url, params=control_params, data=params, timeout=30, verify=False)
+                body_data = params.copy()
+                if active_token:
+                    body_data['SynoToken'] = active_token
+                
+                resp = self.session.post(url, params=control_params, data=body_data, headers=headers, timeout=30, verify=False)
                 
             # 6. Procesar respuesta
             if resp.status_code == 200:
                 try:
                     data = resp.json()
+                    # Si el NAS nos devuelve una cookie nueva, la sesión de requests la guardará
                     # Log detallado de errores para depuración (solo si no es exitoso)
                     if not data.get('success'):
                         logger.warning(f"NAS API Error in {api}/{method}: {data}")

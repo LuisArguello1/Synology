@@ -440,22 +440,30 @@ class UserService:
                 print(f"❌ EXCEPCIÓN EN DIAGNÓSTICO: {e}")
             print("=" * 80)
             
-            logger.info(f"Creating user with params: {params}")
-            # El método estándar para crear usuarios suele ser 'add' o 'create' 
-            # Probamos 'add' que es más común en Core.User
-            resp = admin_conn.request('SYNO.Core.User', 'add', version=1, params=params)
+            # Preparar parámetros ultra-compatibles para RackStation
+            create_params = params.copy()
+            create_params['passwd'] = info['password']
+            create_params['password'] = info['password']
+            create_params['user_name'] = username
+            create_params['name'] = username
             
+            # El método 'create' es el estándar en RackStation
+            resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=create_params)
+            
+            # Si falla, intentamos con lo mínimo (a veces los adicionales causan 105/104)
             if not resp.get('success'):
-                # Fallback a 'create' si 'add' no es el método (depende de versión de DSM)
-                if resp.get('error', {}).get('code') in [101, 102]: # Errores de API/Method no encontrado
-                    logger.info("Retrying with method 'create'...")
-                    resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
-            
+                logger.warning(f"Full create failed ({resp.get('error', {}).get('code')}). Trying minimal setup...")
+                minimal = {
+                    'name': username, 
+                    'user_name': username,
+                    'passwd': info['password'], 
+                    'password': info['password']
+                }
+                resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=minimal)
+
             if not resp.get('success'):
                 error_code = resp.get('error', {}).get('code', 'Unknown')
-                error_msg = f"Synology Error: {error_code}"
-                logger.error(f"User creation failed: {error_msg}, Full response: {resp}")
-                return {'success': False, 'message': error_msg}
+                return {'success': False, 'message': f"Synology Error: {error_code}"}
                 
             results['steps'].append('User Created')
 
