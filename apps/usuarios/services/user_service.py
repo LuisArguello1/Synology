@@ -289,19 +289,29 @@ class UserService:
         """PASO 2: Asignar Grupos (Solo agrega los faltantes - FIX DSM 7)"""
         if not groups:
             return True
-            
-        # Obtener grupos actuales para no re-agregar (Fix DSM 7: Solicitar 'groups' explícitamente)
-        current_groups_raw = []
-        try:
-            user_resp = conn.request('SYNO.Core.User', 'get', version=1, 
-                                   params={'name': username, 'additional': json.dumps(['groups'])})
-            logger.debug(f"DSM User Info Get response: {user_resp}")
-            if user_resp.get('success') and user_resp['data']['users']:
-                current_groups_raw = user_resp['data']['users'][0].get('groups', [])
-        except Exception as e:
-            logger.error(f"Failed to fetch current groups for {username}: {e}")
 
-        # Normalizar grupos (Pueden venir como strings o dicts con 'name'/'group_name')
+        import time
+        # 1. Esperar propagación real DSM (Retry loop para evitar Error 3106)
+        user_propagated = False
+        for i in range(5):
+            u_check = conn.request('SYNO.Core.User', 'get', version=1, params={'name': username})
+            if u_check.get('success') and u_check.get('data', {}).get('users'):
+                user_propagated = True
+                break
+            logger.warning(f"Waiting for user {username} to propagate in DSM... (Attempt {i+1}/5)")
+            time.sleep(0.6)
+
+        if not user_propagated:
+            logger.error(f"User {username} did not propagate in DSM after 3 seconds.")
+            return False
+
+        # 2. Obtener grupos actuales para no re-agregar o borrar por error
+        current_groups_raw = []
+        user_resp = conn.request('SYNO.Core.User', 'get', version=1, 
+                               params={'name': username, 'additional': json.dumps(['groups'])})
+        if user_resp.get('success') and user_resp['data']['users']:
+            current_groups_raw = user_resp['data']['users'][0].get('groups', [])
+
         current_groups = []
         for g in current_groups_raw:
             if isinstance(g, dict):
@@ -310,29 +320,55 @@ class UserService:
             else:
                 current_groups.append(g)
 
-        # 1. Agregar faltantes
-        to_add = [g for g in groups if g not in current_groups]
-        success = True
-        for group_name in to_add:
-            logger.info(f"[STEP 2] Adding user '{username}' to group '{group_name}'")
-            resp = conn.request('SYNO.Core.Group', 'addmember', version=1, 
-                              params={'name': group_name, 'users': username})
-            logger.debug(f"DSM Group Add ({group_name}) response: {resp}")
-            if not resp.get('success', False):
-                logger.error(f"Failed to add user to group {group_name}: {resp}")
-                success = False
+        # 3. Validar grupos existentes en el sistema (Evitar Error 404/105 por grupos inexistentes)
+        valid_groups = []
+        g_resp = conn.request('SYNO.Core.Group', 'list', version=1)
+        if g_resp.get('success'):
+            data = g_resp.get('data', {})
+            groups_list = data.get('groups') or data.get('items') or []
+            valid_groups = [g['name'] for g in groups_list if 'name' in g]
+        
+        # 4. Filtrar grupos solicitados: Solo existentes y NO protegidos
+        # 'users' es asignado por DSM, 'administrators' requiere UI o APIs específicas a veces
+        protected_groups = ['users', 'http', 'ftp', 'backup']
+        requested_groups = [g for g in groups if g in valid_groups and g not in protected_groups]
+        
+        if len(requested_groups) != len(groups):
+            invalid = [g for g in groups if g not in valid_groups]
+            if invalid:
+                logger.warning(f"Ignoring NON-EXISTENT groups for DSM: {invalid}")
+            protected = [g for g in groups if g in protected_groups]
+            if protected:
+                logger.info(f"Skipping AUTO-MANAGED/PROTECTED groups: {protected}")
 
-        # 2. Eliminar sobrantes (Sincronización Real DSM 7)
-        to_remove = [g for g in current_groups if g not in groups and g != 'users'] # No quitar de 'users'
-        for group_name in to_remove:
-            logger.info(f"[STEP 2] Removing user '{username}' from group '{group_name}'")
-            resp = conn.request('SYNO.Core.Group', 'removemember', version=1, 
-                              params={'name': group_name, 'users': username})
-            logger.debug(f"DSM Group Remove ({group_name}) response: {resp}")
-            if not resp.get('success', False):
-                logger.error(f"Failed to remove user from group {group_name}: {resp}")
-                success = False
-        return success
+        # 5. Sincronización de Miembros (API SYNO.Core.User.Group)
+        to_add = [g for g in requested_groups if g not in current_groups]
+        to_remove = [g for g in current_groups if g not in requested_groups and g not in protected_groups]
+        
+        if not to_add and not to_remove:
+            logger.info("No group changes needed.")
+            return True
+
+        logger.info(f"[STEP 2] Batch updating groups for '{username}': Join={to_add}, Leave={to_remove}")
+        
+        # Esta API es la correcta según depuración en vivo del usuario
+        params = {
+            'name': username,
+            'join_group': json.dumps(to_add),
+            'leave_group': json.dumps(to_remove)
+        }
+        
+        resp = conn.request('SYNO.Core.User.Group', 'join', version=1, params=params)
+        logger.debug(f"DSM Response for SYNO.Core.User.Group:join: {resp}")
+        
+        if resp.get('success'):
+            task_id = resp.get('data', {}).get('task_id', 'N/A')
+            logger.info(f"Successfully updated groups for user '{username}' (Task ID: {task_id})")
+            return True
+        else:
+            logger.error(f"DSM RAW GROUP ERROR: {resp}")
+            logger.error(f"Failed to update groups for user {username}")
+            return False
 
     def _step_set_flags(self, username, info, conn):
         """PASO 3: Flags de Usuario (Solo campos simples)"""
@@ -388,13 +424,27 @@ class UserService:
             if policy not in ['rw', 'ro', 'na']: continue
             
             logger.info(f"[STEP 5] Setting folder '{share_name}' to '{policy}' for user '{username}'")
-            # FIX DSM 7: Requiere 'user' y opcionalmente 'type': 'user'
-            resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params={
+            
+            # Estrategia 1: Parámetros estándar DSM 7
+            params = {
                 'name': share_name,
                 'user': username,
                 'type': 'user',
                 'privilege': policy
-            })
+            }
+            resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=params)
+            
+            # Estrategia 2: Fallback con 'user_name' y 'is_group' (Estilo GroupService)
+            if not resp.get('success'):
+                logger.debug(f"Strategy 1 failed for {share_name}, trying Strategy 2...")
+                params = {
+                    'name': share_name,
+                    'user_name': username,
+                    'is_group': 'false',
+                    'privilege': policy
+                }
+                resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=params)
+            
             logger.debug(f"DSM Share Perm ({share_name}) response: {resp}")
             if not resp.get('success', False):
                 logger.error(f"Failed to set folder permission for {share_name}: {resp}")
@@ -476,7 +526,13 @@ class UserService:
 
         # 3. Aplicaciones (Control de herencia DSM 7)
         if 'apps' in data:
-            apps_to_apply = data['apps'].copy()
+            apps_raw = data['apps']
+            apps_to_apply = {}
+            if isinstance(apps_raw, dict):
+                apps_to_apply = apps_raw.copy()
+            elif isinstance(apps_raw, list):
+                apps_to_apply = {app: 'allow' for app in apps_raw}
+
             # Opcional: Si tenemos info de permisos de grupos, saltamos redundancias
             group_perms = self.get_wizard_options().get('group_permissions', {})
             inherited_apps = {}
@@ -560,7 +616,7 @@ class UserService:
             
             # DSM 7 no es transaccional. Esperar un instante para que el sistema propague el nuevo usuario
             import time
-            time.sleep(0.5)
+            time.sleep(2.5)
 
             # Pasos 2-7: Aplicar configuraciones avanzadas (Granular)
             self.apply_user_settings(username, data, results, conn=admin_conn)
