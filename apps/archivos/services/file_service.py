@@ -162,48 +162,64 @@ class FileService:
 
     def upload_file(self, folder_path, file_obj, create_parents=True, overwrite=True):
         """
-        Sube un archivo a una carpeta específica.
+        Sube un archivo a una carpeta específica (Fix DSM 7).
         API: SYNO.FileStation.Upload method=upload
+        Endpoint: file_upload.cgi
         """
         if self.offline_mode:
-             return {'success': True, 'data': {'file': {'path': f"{folder_path}/{file_obj.name}", 'name': file_obj.name}}}
+            return {'success': True, 'data': {'file': {'path': f"{folder_path}/{file_obj.name}", 'name': file_obj.name}}}
 
         try:
-            import requests # Import local para evitar circularidad si fuera top-level (aunque no lo es, es seguro)
-            
-            # 1. Preparar URL y Params
-            # Usamos entry.cgi como punto de entrada genérico si no tenemos path específico cacheado
-            # Idealmente deberíamos usar self.connection._get_api_info('SYNO.FileStation.Upload') pero es interno.
-            # Asumiremos entry.cgi que funciona con el alias.
-            url = f"{self.connection.get_base_url()}/webapi/entry.cgi"
-            
-            sid = self.connection.get_sid()
-            if not sid:
-                return {'success': False, 'error': {'code': 401, 'msg': 'No session ID (Not authenticated)'}}
+            import requests
 
-            params = {
+            # FIX DSM 7: SYNO.FileStation.Upload debe ir por file_upload.cgi, NO por entry.cgi
+            url = f"{self.connection.get_base_url()}/webapi/file_upload.cgi"
+            sid = self.connection.get_sid()
+
+            if not sid:
+                return {'success': False, 'error': {'code': 401, 'msg': 'No session ID'}}
+
+            # Parámetros en data (form-data)
+            data = {
                 'api': 'SYNO.FileStation.Upload',
                 'method': 'upload',
-                'version': 2,
+                'version': '2',
                 'path': folder_path,
-                'create_parents': str(create_parents).lower(),
-                'overwrite': str(overwrite).lower(),
+                'name': file_obj.name, # FIX DSM 7: Asegurar nombre explícito
+                'create_parents': 'true' if create_parents else 'false',
+                'overwrite': 'true' if overwrite else 'false',
                 '_sid': sid
             }
+
+            # Archivo en files. DSM 7 espera el campo 'upload'
+            # FIX DSM 7: Forzar octet-stream para evitar errores por content_type vacío
+            files = {
+                'upload': (file_obj.name, file_obj, 'application/octet-stream')
+            }
+
+            response = requests.post(
+                url,
+                data=data,
+                files=files,
+                verify=False,
+                timeout=300
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Upload HTTP error {response.status_code}: {response.text}")
+                return {
+                    'success': False,
+                    'error': {'code': response.status_code, 'msg': 'HTTP error'}
+                }
+
+            result = response.json()
+            if not result.get('success'):
+                logger.error(f"DSM upload failed: {result}")
             
-            # 2. Preparar Archivo
-            # 'file' es el nombre del campo esperado por Synology
-            files = {'file': (file_obj.name, file_obj, file_obj.content_type)}
-            
-            # 3. Request
-            response = requests.post(url, data=params, files=files, verify=False, timeout=300) # 5 min timeout para uploads
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                 return {'success': False, 'error': {'code': response.status_code, 'msg': 'HTTP Error'}}
+            return result
 
         except Exception as e:
+            logger.exception("Upload exception")
             return {'success': False, 'error': {'code': 9999, 'msg': str(e)}}
 
     def copy_move_item(self, path, dest_folder, is_move=False):
