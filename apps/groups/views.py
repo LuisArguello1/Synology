@@ -99,50 +99,32 @@ class GroupDeleteView(LoginRequiredMixin, View):
             
         return render(request, 'groups/group_list.html')
 
-class GroupExportView(View):
-    def get(self, request):
-        service = GroupService()
-        groups = service.list_groups()
-        
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="groups.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow(['Nombre', 'Descripción', 'Miembros', 'Sistema'])
-        
-        for group in groups:
-            members = ', '.join(group.get('members', [])) if isinstance(group.get('members'), list) else str(group.get('members', ''))
-            writer.writerow([
-                group.get('name', ''),
-                group.get('description', ''),
-                members,
-                'Sí' if group.get('is_system') else 'No'
-            ])
-            
-        return response
-        
     def post(self, request, *args, **kwargs):
         group_name = request.POST.get('name')
+        
+        # Detectamos si es una petición AJAX/JSON
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json'
+
         if not group_name:
-             if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
-                 return JsonResponse({'success': False, 'message': 'Nombre de grupo no especificado'})
-             messages.error(request, 'Nombre de grupo no especificado')
-             return redirect('groups:list')
+            error_msg = 'Nombre de grupo no especificado'
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': error_msg})
+            messages.error(request, error_msg)
+            return redirect('groups:list')
 
         service = GroupService()
         result = service.delete_group(group_name)
         
-        if result['success']:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
-                return JsonResponse({'success': True, 'message': f'Grupo "{group_name}" eliminado correctamente.'})
+        if is_ajax:
+            return JsonResponse(result)
+
+        # Fallback para peticiones tradicionales
+        if result.get('success', False):
             messages.success(request, f'Grupo "{group_name}" eliminado correctamente.')
         else:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
-                return JsonResponse({'success': False, 'message': f'Error al eliminar grupo: {result.get("message")}'})
-            messages.error(request, f'Error al eliminar grupo: {result.get("message")}')
+            messages.error(request, f'Error al eliminar grupo: {result.get("message", "Error desconocido")}')
             
         return redirect('groups:list')
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CreateGroupWizardView(LoginRequiredMixin, View):
@@ -201,7 +183,7 @@ class GroupDetailView(View):
         group = service.get_group_details(name)
         if group:
              return JsonResponse({'success': True, 'data': group})
-        return JsonResponse({'success': False, 'message': 'Group not found'}), 500
+        return JsonResponse({'success': False, 'message': 'Group not found'}, status=404)
 
 
 # === API Endpoints for Wizard Options (Proxy to Services) ===
@@ -290,4 +272,3 @@ class GroupExportView(LoginRequiredMixin, View):
                      'Sí' if g.get('is_system') else 'No'
                  ])
             return response
-

@@ -39,6 +39,12 @@ class ConnectionService:
         
         # Cache para rutas de API descubiertas
         self.api_paths = {}
+        
+        # Session persistente para cookies (DID, SID)
+        self.session = requests.Session()
+        # Desactivar advertencias de SSL para certificados auto-firmados comunes en NAS
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     def get_sid(self):
         """Devuelve el SID actual si existe"""
@@ -85,7 +91,7 @@ class ConnectionService:
             }
             
             logger.info(f"Discovering APIs at {url}...")
-            response = requests.get(url, params=params, timeout=10, verify=False)
+            response = self.session.get(url, params=params, timeout=10, verify=False)
             
             # Log de respuesta raw para depuración
             logger.debug(f"Discovery Response Status: {response.status_code}")
@@ -207,12 +213,14 @@ class ConnectionService:
                 'method': 'login',
                 'account': self.config.admin_username,
                 'passwd': self.config.admin_password,
-                'session': session_alias,   # Configurable: FileStation o DSM
-                'format': 'sid',            # Obtenemos SID en JSON
-                'enable_syno_token': 'yes'  # Requerido en DSM 7+ para obtener synotoken
+                'session': session_alias,   # DSM para admin
+                'format': 'sid',
+                'enable_syno_token': 'yes'
             }
             
-            response = requests.get(url, params=params, timeout=15, verify=False)
+            # RackStation often requires a Device ID (did) cookie for write access
+            # We first try to get it if we don't have it
+            response = self.session.get(url, params=params, timeout=15, verify=False)
             response.raise_for_status()
             data = response.json()
             
@@ -290,22 +298,23 @@ class ConnectionService:
             if active_sid:
                 payload['_sid'] = active_sid
                 
-            # 5. Configurar Headers (Simular Postman exactamente)
+            # 5. Configurar Headers (Simular Navegador/Postman exactamente)
             headers = {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': f"{self.get_base_url()}/"
             }
             active_token = getattr(self, '_synotoken', None)
             if active_token:
                 headers['X-SYNO-TOKEN'] = active_token
 
-            # 6. Ejecutar Request
+            # 6. Ejecutar Request usando la Session persistente
             if method in ['query', 'get']:
-                # Solo discovery y GET específicos
-                resp = requests.get(url, params=payload, headers=headers, timeout=30, verify=False)
+                resp = self.session.get(url, params=payload, headers=headers, timeout=30, verify=False)
             else:
-                # Todo lo demás es POST para DSM 7
-                # data=payload asegura Content-Type: application/x-www-form-urlencoded
-                resp = requests.post(url, data=payload, headers=headers, timeout=30, verify=False)
+                # DSM 7: Todo lo demás es POST. SynoToken en headers.
+                # 'data' asegura x-www-form-urlencoded
+                resp = self.session.post(url, data=payload, headers=headers, timeout=30, verify=False)
                 
             # 6. Procesar respuesta
             if resp.status_code == 200:
