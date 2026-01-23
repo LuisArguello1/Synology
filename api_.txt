@@ -1,0 +1,1 @@
+curl -k -X POST "https://10.2.0.48:5001/webapi/entry.cgi" \-d "api=SYNO.Core.Share.Permission" \-d "method=set" \-d "version=1" \-d "name=Compartido" \-d "user_name=Luis" \-d "group_name=" \-d "is_group=false" \-d "privilege=rw" \-d "share_name=Compartido" \-d "_sid=RLfyI4S1-HLzBmkHtJuibIYN4nrJzDzzlw5dp9Or4NERtLkUJL5YPmGLBIW-uvtd6IqOGr7Js2CRDSMX7MDRAA"

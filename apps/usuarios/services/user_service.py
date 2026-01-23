@@ -475,7 +475,13 @@ class UserService:
         return fail_count == 0
 
     def _step_set_folder_perms(self, username, perms_data, conn):
-        """PASO 5: Permisos de Carpetas - MÚLTIPLES ESTRATEGIAS DSM 7+"""
+        """PASO 5: Permisos de Carpetas - FORMATO CORRECTO DSM 7+
+        
+        Formato descubierto del tráfico NAS + pruebas curl exitosas:
+        - Campos requeridos: is_admin, is_custom, is_deny, is_readonly, is_writable, name
+        - user_group_type: "local_user"
+        - permissions: array JSON completo
+        """
         if not perms_data or not isinstance(perms_data, dict):
             return True
             
@@ -488,76 +494,54 @@ class UserService:
             
             logger.info(f"[STEP 5] Setting folder '{share_name}' to '{policy}' for user '{username}'")
             
-            # Múltiples estrategias para compatibilidad con diferentes versiones de DSM
-            strategies = [
-                # ESTRATEGIA 1: Parámetros estándar básicos
-                {
-                    'params': {
-                        'name': share_name,
-                        'user_name': username,
-                        'is_group': 'false',
-                        'privilege': policy
-                    }
-                },
-                # ESTRATEGIA 2: Con 'user' en lugar de 'user_name'
-                {
-                    'params': {
-                        'name': share_name,
-                        'user': username,
-                        'is_group': 'false',
-                        'privilege': policy
-                    }
-                },
-                # ESTRATEGIA 3: Con 'share_name' explícito + group_name vacío
-                {
-                    'params': {
-                        'name': share_name,
-                        'user_name': username,
-                        'group_name': '',
-                        'is_group': 'false',
-                        'share_name': share_name,
-                        'privilege': policy
-                    }
-                },
-                # ESTRATEGIA 4: Con path en formato de ruta
-                {
-                    'params': {
-                        'name': share_name,
-                        'user_name': username,
-                        'is_group': 'false',
-                        'path': f"/{share_name}",
-                        'privilege': policy
-                    }
-                },
-                # ESTRATEGIA 5: Usando 'type' en lugar de 'is_group'
-                {
-                    'params': {
-                        'name': share_name,
-                        'user': username,
-                        'type': 'user',
-                        'privilege': policy
-                    }
-                },
-            ]
+            # Convertir policy (rw/ro/na) al formato completo de Synology
+            if policy == 'rw':
+                perm = {
+                    "is_admin": False,
+                    "is_custom": False,
+                    "is_deny": False,
+                    "is_readonly": False,
+                    "is_writable": True,
+                    "name": username
+                }
+            elif policy == 'ro':
+                perm = {
+                    "is_admin": False,
+                    "is_custom": False,
+                    "is_deny": False,
+                    "is_readonly": True,
+                    "is_writable": False,
+                    "name": username
+                }
+            elif policy == 'na':  # na = deny
+                perm = {
+                    "is_admin": False,
+                    "is_custom": False,
+                    "is_deny": True,
+                    "is_readonly": False,
+                    "is_writable": False,
+                    "name": username
+                }
             
-            folder_success = False
-            for idx, strategy in enumerate(strategies, 1):
-                logger.debug(f"  → Strategy {idx}/{len(strategies)}: SYNO.Core.Share.Permission with {strategy['params']}")
-                
-                resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=strategy['params'])
-                
-                if resp.get('success'):
-                    logger.info(f"  ✓ SUCCESS with Strategy {idx}")
-                    folder_success = True
-                    break
-                else:
-                    error_info = resp.get('error', {})
-                    logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+            # Formato correcto con TODOS los campos requeridos
+            permissions = [perm]
             
-            if folder_success:
+            # Llamada con el formato correcto
+            params = {
+                "name": share_name,
+                "user_group_type": "local_user",
+                "permissions": json.dumps(permissions)
+            }
+            
+            logger.debug(f"  → Calling SYNO.Core.Share.Permission.set with params: {params}")
+            resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=params)
+            
+            if resp.get('success'):
+                logger.info(f"  ✓ SUCCESS setting permission for '{share_name}'")
                 success_count += 1
             else:
-                logger.error(f"[STEP 5] ALL STRATEGIES FAILED for folder '{share_name}'")
+                error_info = resp.get('error', {})
+                logger.error(f"  ✗ FAILED for '{share_name}': code={error_info.get('code')}, error={error_info}")
                 fail_count += 1
         
         logger.info(f"[STEP 5] Folder Permissions: {success_count} success, {fail_count} failed")
