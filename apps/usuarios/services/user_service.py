@@ -392,71 +392,185 @@ class UserService:
         return resp.get('success', False)
 
     def _step_set_app_privs(self, username, apps_data, conn):
-        """PASO 4: Permisos de Aplicaciones (Llamada por App - FIX DSM 7)"""
+        """PASO 4: Permisos de Aplicaciones - MÚLTIPLES ESTRATEGIAS DSM 7+"""
         if not apps_data or not isinstance(apps_data, dict):
             return True
             
-        success = True
+        success_count = 0
+        fail_count = 0
+        
         for app_id, policy in apps_data.items():
-            if policy not in ['allow', 'deny']: continue
+            if policy not in ['allow', 'deny']: 
+                continue
             
             logger.info(f"[STEP 4] Setting app '{app_id}' to '{policy}' for user '{username}'")
-            # FIX DSM 7: SYNO.Core.AppPrivilege usa 'allow' en lugar de 'privilege'
-            resp = conn.request('SYNO.Core.AppPrivilege', 'set', version=1, params={
-                'username': username,
-                'app': app_id,
-                'allow': 'true' if policy == 'allow' else 'false',
-                'is_group': 'false'
-            })
-            logger.debug(f"DSM AppPriv ({app_id}) response: {resp}")
-            if not resp.get('success', False):
-                logger.error(f"Failed to set app privilege for {app_id}: {resp}")
-                success = False
-        return success
+            
+            # Convertir allow/deny a valores booleanos
+            allow_bool = (policy == 'allow')
+            
+            # ESTRATEGIA 1: SYNO.Core.AppPriv (API documentada)
+            strategies = [
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 2: SYNO.Core.AppPriv.App (versión específica)
+                {
+                    'api': 'SYNO.Core.AppPriv.App',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 3: Con username en lugar de name
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'username': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 4: allow como 1/0 en lugar de true/false
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': '1' if allow_bool else '0'
+                    }
+                },
+            ]
+            
+            app_success = False
+            for idx, strategy in enumerate(strategies, 1):
+                logger.debug(f"  → Strategy {idx}/{len(strategies)}: {strategy['api']} with params {strategy['params']}")
+                
+                resp = conn.request(strategy['api'], 'set', version=1, params=strategy['params'])
+                
+                if resp.get('success'):
+                    logger.info(f"  ✓ SUCCESS with Strategy {idx} ({strategy['api']})")
+                    app_success = True
+                    break
+                else:
+                    error_info = resp.get('error', {})
+                    logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+            
+            if app_success:
+                success_count += 1
+            else:
+                logger.error(f"[STEP 4] ALL STRATEGIES FAILED for app '{app_id}'")
+                fail_count += 1
+        
+        logger.info(f"[STEP 4] App Permissions: {success_count} success, {fail_count} failed")
+        return fail_count == 0
 
     def _step_set_folder_perms(self, username, perms_data, conn):
-        """PASO 5: Permisos de Carpetas (Llamada por Carpeta - FIX DSM 7)"""
+        """PASO 5: Permisos de Carpetas - MÚLTIPLES ESTRATEGIAS DSM 7+"""
         if not perms_data or not isinstance(perms_data, dict):
             return True
             
-        success = True
+        success_count = 0
+        fail_count = 0
+        
         for share_name, policy in perms_data.items():
-            if policy not in ['rw', 'ro', 'na']: continue
+            if policy not in ['rw', 'ro', 'na']: 
+                continue
             
             logger.info(f"[STEP 5] Setting folder '{share_name}' to '{policy}' for user '{username}'")
             
-            # Estrategia 1: Parámetros estándar DSM 7
-            params = {
-                'name': share_name,
-                'user': username,
-                'type': 'user',
-                'privilege': policy
-            }
-            resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=params)
+            # Múltiples estrategias para compatibilidad con diferentes versiones de DSM
+            strategies = [
+                # ESTRATEGIA 1: Parámetros estándar básicos
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'is_group': 'false',
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 2: Con 'user' en lugar de 'user_name'
+                {
+                    'params': {
+                        'name': share_name,
+                        'user': username,
+                        'is_group': 'false',
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 3: Con 'share_name' explícito + group_name vacío
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'group_name': '',
+                        'is_group': 'false',
+                        'share_name': share_name,
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 4: Con path en formato de ruta
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'is_group': 'false',
+                        'path': f"/{share_name}",
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 5: Usando 'type' en lugar de 'is_group'
+                {
+                    'params': {
+                        'name': share_name,
+                        'user': username,
+                        'type': 'user',
+                        'privilege': policy
+                    }
+                },
+            ]
             
-            # Estrategia 2: Fallback con 'user_name' y 'is_group' (Estilo GroupService)
-            if not resp.get('success'):
-                logger.debug(f"Strategy 1 failed for {share_name}, trying Strategy 2...")
-                params = {
-                    'name': share_name,
-                    'user_name': username,
-                    'is_group': 'false',
-                    'privilege': policy
-                }
-                resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=params)
+            folder_success = False
+            for idx, strategy in enumerate(strategies, 1):
+                logger.debug(f"  → Strategy {idx}/{len(strategies)}: SYNO.Core.Share.Permission with {strategy['params']}")
+                
+                resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=strategy['params'])
+                
+                if resp.get('success'):
+                    logger.info(f"  ✓ SUCCESS with Strategy {idx}")
+                    folder_success = True
+                    break
+                else:
+                    error_info = resp.get('error', {})
+                    logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
             
-            logger.debug(f"DSM Share Perm ({share_name}) response: {resp}")
-            if not resp.get('success', False):
-                logger.error(f"Failed to set folder permission for {share_name}: {resp}")
-                success = False
-        return success
+            if folder_success:
+                success_count += 1
+            else:
+                logger.error(f"[STEP 5] ALL STRATEGIES FAILED for folder '{share_name}'")
+                fail_count += 1
+        
+        logger.info(f"[STEP 5] Folder Permissions: {success_count} success, {fail_count} failed")
+        return fail_count == 0
 
     def _step_set_quotas(self, username, quota_data, conn):
-        """PASO 6: Cuotas de Almacenamiento (Llamada por volumen)"""
+        """PASO 6: Cuotas de Almacenamiento - MÚLTIPLES ESTRATEGIAS DSM 7+"""
         if not quota_data or not isinstance(quota_data, dict):
             return True
             
-        success = True
+        success_count = 0
+        fail_count = 0
+        
         for vol_path, q_info in quota_data.items():
             try:
                 size_mb = int(q_info.get('size', 0))
@@ -464,47 +578,201 @@ class UserService:
                 if unit == 'GB': size_mb *= 1024
                 elif unit == 'TB': size_mb *= 1024 * 1024
                 
+                # Asegurar que vol_path empiece con /
+                if not vol_path.startswith('/'):
+                    vol_path = f'/{vol_path}'
+                
                 logger.info(f"[STEP 6] Setting quota on '{vol_path}' to {size_mb}MB for user '{username}'")
-                resp = conn.request('SYNO.Core.Quota', 'set', version=1, params={
-                    'type': 'user',
-                    'name': username,
-                    'volume_path': vol_path,
-                    'size_limit': size_mb
-                })
-                logger.debug(f"DSM Quota ({vol_path}) response: {resp}")
-                if not resp.get('success', False):
-                    logger.error(f"Failed to set quota on {vol_path}: {resp}")
-                    success = False
-            except: continue
-        return success
+                
+                # Múltiples estrategias para cuotas
+                strategies = [
+                    # ESTRATEGIA 1: Parámetros estándar con type='user'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 2: Con 'username' en lugar de 'name'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'username': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 3: Con 'user' en lugar de 'name'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'user': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 4: Con 'vol_path' en lugar de 'volume_path'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'vol_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 5: Con 'quota_size' en lugar de 'size_limit'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'volume_path': vol_path,
+                            'quota_size': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 6: Sin 'type', solo datos directos
+                    {
+                        'method': 'set',
+                        'params': {
+                            'name': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                ]
+                
+                quota_success = False
+                for idx, strategy in enumerate(strategies, 1):
+                    logger.debug(f"  → Strategy {idx}/{len(strategies)}: method={strategy['method']}, params={strategy['params']}")
+                    
+                    resp = conn.request('SYNO.Core.Quota', strategy['method'], version=1, params=strategy['params'])
+                    
+                    if resp.get('success'):
+                        logger.info(f"  ✓ SUCCESS with Strategy {idx}")
+                        quota_success = True
+                        break
+                    else:
+                        error_info = resp.get('error', {})
+                        logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+                
+                if quota_success:
+                    success_count += 1
+                else:
+                    logger.error(f"[STEP 6] ALL STRATEGIES FAILED for volume '{vol_path}'")
+                    fail_count += 1
+                    
+            except Exception as e:
+                logger.error(f"[STEP 6] Exception processing quota for {vol_path}: {e}")
+                fail_count += 1
+        
+        logger.info(f"[STEP 6] Quotas: {success_count} success, {fail_count} failed")
+        return fail_count == 0
 
     def _step_set_speed_limit(self, username, speed_data, conn):
-        """PASO 7: Límites de Velocidad (User.set)"""
+        """PASO 7: Límites de Velocidad - MÚLTIPLES ESTRATEGIAS DSM 7+"""
         if not speed_data or not isinstance(speed_data, dict):
             return True
             
         fs = speed_data.get('File Station', {})
-        if not fs: return True
-        
-        params = {'name': username}
+        if not fs: 
+            return True
+    
+        logger.info(f"[STEP 7] Setting speed limits for '{username}'")
         
         def to_kb(val, unit):
             try:
                 v = int(val)
                 return v * 1024 if unit == 'MB' else v
-            except: return 0
+            except:
+                return 0
 
+        # Calcular valores
         if fs.get('mode') == 'limit':
-            params['speed_limit_up'] = to_kb(fs.get('up'), fs.get('up_unit'))
-            params['speed_limit_down'] = to_kb(fs.get('down'), fs.get('down_unit'))
+            upload_kb = to_kb(fs.get('up', 0), fs.get('up_unit', 'KB'))
+            download_kb = to_kb(fs.get('down', 0), fs.get('down_unit', 'KB'))
         elif fs.get('mode') == 'unlimited':
-            params['speed_limit_up'] = 0
-            params['speed_limit_down'] = 0
+            upload_kb = 0
+            download_kb = 0
+        else:
+            return True  # No hay configuración válida
+        
+        logger.debug(f"  Calculated: upload={upload_kb}KB/s, download={download_kb}KB/s")
+        
+        # Múltiples estrategias para límites de velocidad
+        strategies = [
+            # ESTRATEGIA 1: SYNO.Core.BandwidthControl (API dedicada según documentación)
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'user': username,
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb,
+                    'enable': 'true'
+                }
+            },
+            # ESTRATEGIA 2: SYNO.Core.BandwidthControl con 'username'
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'username': username,
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb
+                }
+            },
+            # ESTRATEGIA 3: SYNO.Core.User con speed_limit_up/down
+            {
+                'api': 'SYNO.Core.User',
+                'method': 'set',
+                'params': {
+                    'name': username,
+                    'speed_limit_up': upload_kb,
+                    'speed_limit_down': download_kb
+                }
+            },
+            # ESTRATEGIA 4: SYNO.Core.User con username en lugar de name
+            {
+                'api': 'SYNO.Core.User',
+                'method': 'set',
+                'params': {
+                    'username': username,
+                    'speed_limit_up': upload_kb,
+                    'speed_limit_down': download_kb
+                }
+            },
+            # ESTRATEGIA 5: SYNO.Core.BandwidthControl con application_id
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'user_id': username,
+                    'application_id': 'SYNO.SDS.FileStation',
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb
+                }
+            },
+        ]
+        
+        for idx, strategy in enumerate(strategies, 1):
+            logger.debug(f"  → Strategy {idx}/{len(strategies)}: {strategy['api']}.{strategy['method']} with {strategy['params']}")
             
-        logger.info(f"[STEP 7] Setting speed limits for '{username}'")
-        resp = conn.request('SYNO.Core.User', 'set', version=1, params=params)
-        logger.debug(f"DSM Speed Limit response: {resp}")
-        return resp.get('success', False)
+            resp = conn.request(strategy['api'], strategy['method'], version=1, params=strategy['params'])
+            
+            if resp.get('success'):
+                logger.info(f"  ✓ SUCCESS with Strategy {idx} ({strategy['api']})")
+                return True
+            else:
+                error_info = resp.get('error', {})
+                logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+        
+        logger.error(f"[STEP 7] ALL STRATEGIES FAILED for speed limits")
+        return False
 
     def apply_user_settings(self, username, data, results, conn):
         """Orquestador secuencial (DSM 7 Compatible - Validación Estricta)"""
