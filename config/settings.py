@@ -261,6 +261,16 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'apps.usuarios': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apps.archivos': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }
 

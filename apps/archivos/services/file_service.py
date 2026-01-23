@@ -162,48 +162,135 @@ class FileService:
 
     def upload_file(self, folder_path, file_obj, create_parents=True, overwrite=True):
         """
-        Sube un archivo a una carpeta específica.
+        Sube un archivo a una carpeta específica (MÚLTIPLES ESTRATEGIAS DSM 7+).
         API: SYNO.FileStation.Upload method=upload
         """
         if self.offline_mode:
-             return {'success': True, 'data': {'file': {'path': f"{folder_path}/{file_obj.name}", 'name': file_obj.name}}}
+            return {'success': True, 'data': {'file': {'path': f"{folder_path}/{file_obj.name}", 'name': file_obj.name}}}
 
         try:
-            import requests # Import local para evitar circularidad si fuera top-level (aunque no lo es, es seguro)
-            
-            # 1. Preparar URL y Params
-            # Usamos entry.cgi como punto de entrada genérico si no tenemos path específico cacheado
-            # Idealmente deberíamos usar self.connection._get_api_info('SYNO.FileStation.Upload') pero es interno.
-            # Asumiremos entry.cgi que funciona con el alias.
-            url = f"{self.connection.get_base_url()}/webapi/entry.cgi"
-            
+            import requests
+
             sid = self.connection.get_sid()
             if not sid:
-                return {'success': False, 'error': {'code': 401, 'msg': 'No session ID (Not authenticated)'}}
+                return {'success': False, 'error': {'code': 401, 'msg': 'No session ID'}}
 
-            params = {
+            logger.info(f"[UPLOAD] Uploading '{file_obj.name}' to '{folder_path}'")
+            logger.debug(f"  File size: {file_obj.size} bytes")
+            
+            # Parámetros comunes para TODAS las estrategias
+            base_data = {
                 'api': 'SYNO.FileStation.Upload',
                 'method': 'upload',
-                'version': 2,
+                'version': '2',
                 'path': folder_path,
-                'create_parents': str(create_parents).lower(),
-                'overwrite': str(overwrite).lower(),
+                'create_parents': 'true' if create_parents else 'false',
+                'overwrite': 'true' if overwrite else 'false',
                 '_sid': sid
             }
-            
-            # 2. Preparar Archivo
-            # 'file' es el nombre del campo esperado por Synology
-            files = {'file': (file_obj.name, file_obj, file_obj.content_type)}
-            
-            # 3. Request
-            response = requests.post(url, data=params, files=files, verify=False, timeout=300) # 5 min timeout para uploads
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                 return {'success': False, 'error': {'code': response.status_code, 'msg': 'HTTP Error'}}
+
+            # Múltiples estrategias de upload
+            strategies = [
+                # ESTRATEGIA 1: file_upload.cgi con campo 'file' (DSM 7.0+)
+                {
+                    'url': f"{self.connection.get_base_url()}/webapi/file_upload.cgi",
+                    'file_field': 'file',
+                    'include_name': False,  # Sin parámetro 'name' explícito
+                    'description': 'file_upload.cgi + field:file (DSM 7.0+)'
+                },
+                # ESTRATEGIA 2: file_upload.cgi con campo 'upload' (documentado en algunas versiones)
+                {
+                    'url': f"{self.connection.get_base_url()}/webapi/file_upload.cgi",
+                    'file_field': 'upload',
+                    'include_name': True,  # Con parámetro 'name'
+                    'description': 'file_upload.cgi + field:upload + name param'
+                },
+                # ESTRATEGIA 3: file_upload.cgi con campo 'file' + parámetro 'name'
+                {
+                    'url': f"{self.connection.get_base_url()}/webapi/file_upload.cgi",
+                    'file_field': 'file',
+                    'include_name': True,
+                    'description': 'file_upload.cgi + field:file + name param'
+                },
+                # ESTRATEGIA 4: entry.cgi con campo 'file' (fallback DSM 6)
+                {
+                    'url': f"{self.connection.get_base_url()}/webapi/entry.cgi",
+                    'file_field': 'file',
+                    'include_name': False,
+                    'description': 'entry.cgi + field:file (DSM 6 fallback)'
+                },
+                # ESTRATEGIA 5: entry.cgi con campo 'upload'
+                {
+                    'url': f"{self.connection.get_base_url()}/webapi/entry.cgi",
+                    'file_field': 'upload',
+                    'include_name': True,
+                    'description': 'entry.cgi + field:upload + name param'
+                },
+            ]
+
+            for idx, strategy in enumerate(strategies, 1):
+                logger.debug(f"  → Strategy {idx}/{len(strategies)}: {strategy['description']}")
+                
+                # Preparar data con o sin 'name'
+                data = base_data.copy()
+                if strategy['include_name']:
+                    data['name'] = file_obj.name
+                
+                # Resetear puntero del archivo al inicio para cada intento
+                file_obj.seek(0)
+                
+                # Preparar files con el campo correcto
+                files = {
+                    strategy['file_field']: (file_obj.name, file_obj, 'application/octet-stream')
+                }
+
+                try:
+                    response = requests.post(
+                        strategy['url'],
+                        data=data,
+                        files=files,
+                        verify=False,
+                        timeout=300
+                    )
+
+                    logger.debug(f"    HTTP Status: {response.status_code}")
+                    
+                    if response.status_code != 200:
+                        logger.warning(f"  ✗ Strategy {idx} failed: HTTP {response.status_code}")
+                        logger.debug(f"    Response: {response.text[:500]}")  # Primeros 500 chars
+                        continue
+
+                    try:
+                        result = response.json()
+                    except:
+                        logger.warning(f"  ✗ Strategy {idx} failed: Invalid JSON response")
+                        logger.debug(f"    Response text: {response.text[:500]}")
+                        continue
+
+                    if result.get('success'):
+                        logger.info(f"  ✓ SUCCESS with Strategy {idx} ({strategy['description']})")
+                        logger.debug(f"    Response data: {result.get('data',  {})}")
+                        return result
+                    else:
+                        error_info = result.get('error', {})
+                        logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+                        
+                except requests.exceptions.Timeout:
+                    logger.warning(f"  ✗ Strategy {idx} failed: Timeout after 300s")
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"  ✗ Strategy {idx} failed: Request error: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Strategy {idx} failed: Unexpected error: {str(e)}")
+
+            # Si llegamos aquí, todas las estrategias fallaron
+            logger.error(f"[UPLOAD] ALL STRATEGIES FAILED for '{file_obj.name}'")
+            return {
+                'success': False,
+                'error': {'code': 9999, 'msg': 'All upload strategies failed. Check logs for details.'}
+            }
 
         except Exception as e:
+            logger.exception("[UPLOAD] Exception during upload")
             return {'success': False, 'error': {'code': 9999, 'msg': str(e)}}
 
     def copy_move_item(self, path, dest_folder, is_move=False):

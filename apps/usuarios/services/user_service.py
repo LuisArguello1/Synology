@@ -264,132 +264,586 @@ class UserService:
             
         return options
 
-    def apply_user_settings(self, username, data, results, conn=None):
-        """
-        Aplica configuraciones complejas (Grupos, Cuotas, Apps, Speed) a un usuario existente.
-        Centraliza la lógica para Reutilización en Create y Update.
-        """
-        active_conn = conn or self.connection
-        info = data.get('info', {})
-        update_params = {'name': username}
-        has_updates = False
+    # =========================================================================
+    # PASOS GRANULARES DSM 7+ (LLAMADAS INDEPENDIENTES)
+    # =========================================================================
 
-        # 0. Flags de Usuario
-        if 'cannot_change_password' in info:
-            update_params['cannot_change_passwd'] = 'true' if info['cannot_change_password'] else 'false'
-            has_updates = True
-
-        # 1. Grupos
-        if 'groups' in data:
-            # Synology espera los grupos separados por coma
-            update_params['groups'] = ",".join(data['groups'])
-            has_updates = True
-
-        # 2. Permisos de Carpetas (Iterativo por limitación de API v1)
-        if 'permissions' in data and data['permissions']:
-            perm_errors = []
-            for share_name, policy in data['permissions'].items():
-                if policy not in ['rw', 'ro', 'na']: continue
-                try:
-                    p_resp = active_conn.request(
-                        api='SYNO.Core.Share.Permission',
-                        method='set', version=1,
-                        params={'name': share_name, 'user_name': username, 'privilege': policy, 'is_group': 'false'}
-                    )
-                    if not p_resp.get('success'): 
-                        error_msg = p_resp.get('error', {}).get('code', 'Unknown')
-                        perm_errors.append(f"{share_name}: Error {error_msg}")
-                except Exception as e: 
-                    perm_errors.append(f"{share_name}: {str(e)}")
-            
-            if not perm_errors: 
-                results['steps'].append('Folder Permissions Applied')
-            else: 
-                results['errors'].append(f"Permission errors: {perm_errors}")
-
-        # 3. Cuotas
-        if 'quota' in data and isinstance(data['quota'], dict):
-            quota_list = []
-            for vol_path, q_data in data['quota'].items():
-                try:
-                    size_mb = int(q_data.get('size', 0))
-                    unit = q_data.get('unit', 'MB')
-                    if unit == 'GB': size_mb *= 1024
-                    elif unit == 'TB': size_mb *= 1024 * 1024
-                    quota_list.append({"volume_path": vol_path, "size_limit": size_mb})
-                except: continue
-            
-            if quota_list:
-                update_params['quota_limit'] = json.dumps(quota_list)
-                has_updates = True
-
-        # 4. Aplicaciones
-        if 'apps' in data and isinstance(data['apps'], dict):
-            app_list = []
-            # 'apps' suele venir como dict { 'app_id': 'allow'/'deny' }
-            for app_id, user_setting in data['apps'].items():
-                if user_setting in ['allow', 'deny']:
-                    app_list.append({
-                        "app": app_id,
-                        "allow": (user_setting == 'allow'),
-                        "allow_empty": False
-                    })
-            
-            if app_list:
-                update_params['app_privilege'] = json.dumps(app_list)
-                has_updates = True
+    def _step_create_user(self, username, password, info, conn):
+        """PASO 1: Crear Base (Solo datos básicos)"""
+        real_name = info.get('real_name') or info.get('description') or username
+        params = {
+            'name': username,
+            'password': password,
+            'real_name': real_name,
+            'description': real_name
+        }
+        if info.get('email'):
+            params['email'] = info['email']
         
-        # 5. Límites de Velocidad
-        if 'speed' in data and isinstance(data['speed'], dict):
-            speed_rules = []
-            service_map = {'File Station': 'file_station', 'FTP': 'ftp', 'Rsync': 'rsync'}
-            
-            def to_kb(val, unit):
-                try:
-                    v = int(val)
-                    return v * 1024 if unit == 'MB' else v
-                except: return 0
+        logger.info(f"[STEP 1] Creating base user '{username}'")
+        resp = conn.request('SYNO.Core.User', 'create', version=1, params=params)
+        logger.debug(f"DSM Create response: {resp}")
+        return resp  # Devolver respuesta completa para validación en el wizard
 
-            for name, s_data in data['speed'].items():
-                api_id = service_map.get(name)
-                if not api_id: continue
-                
-                rule = {
-                    "service": api_id,
-                    "mode": s_data.get('mode', 'unlimited'),
-                    "upload": to_kb(s_data.get('up'), s_data.get('up_unit')),
-                    "download": to_kb(s_data.get('down'), s_data.get('down_unit'))
-                }
-                speed_rules.append(rule)
-            
-            if speed_rules:
-                update_params['speed_limit_rules'] = json.dumps(speed_rules)
-                # Fallback Global para versiones antiguas basado en File Station
-                fs = data['speed'].get('File Station', {})
-                if fs.get('mode') == 'limit':
-                    update_params['speed_limit_up'] = to_kb(fs.get('up'), fs.get('up_unit'))
-                    update_params['speed_limit_down'] = to_kb(fs.get('down'), fs.get('down_unit'))
-                elif fs.get('mode') == 'unlimited':
-                    update_params['speed_limit_up'] = 0
-                    update_params['speed_limit_down'] = 0
-                
-                has_updates = True
+    def _step_assign_groups(self, username, groups, conn):
+        """PASO 2: Asignar Grupos (Solo agrega los faltantes - FIX DSM 7)"""
+        if not groups:
+            return True
 
-        # Ejecutar update consolidado en el NAS
-        if has_updates:
+        import time
+        # 1. Esperar propagación real DSM (Retry loop para evitar Error 3106)
+        user_propagated = False
+        for i in range(5):
+            u_check = conn.request('SYNO.Core.User', 'get', version=1, params={'name': username})
+            if u_check.get('success') and u_check.get('data', {}).get('users'):
+                user_propagated = True
+                break
+            logger.warning(f"Waiting for user {username} to propagate in DSM... (Attempt {i+1}/5)")
+            time.sleep(0.6)
+
+        if not user_propagated:
+            logger.error(f"User {username} did not propagate in DSM after 3 seconds.")
+            return False
+
+        # 2. Obtener grupos actuales para no re-agregar o borrar por error
+        current_groups_raw = []
+        user_resp = conn.request('SYNO.Core.User', 'get', version=1, 
+                               params={'name': username, 'additional': json.dumps(['groups'])})
+        if user_resp.get('success') and user_resp['data']['users']:
+            current_groups_raw = user_resp['data']['users'][0].get('groups', [])
+
+        current_groups = []
+        for g in current_groups_raw:
+            if isinstance(g, dict):
+                g_item = g.get('name') or g.get('group_name')
+                if g_item: current_groups.append(g_item)
+            else:
+                current_groups.append(g)
+
+        # 3. Validar grupos existentes en el sistema (Evitar Error 404/105 por grupos inexistentes)
+        valid_groups = []
+        g_resp = conn.request('SYNO.Core.Group', 'list', version=1)
+        if g_resp.get('success'):
+            data = g_resp.get('data', {})
+            groups_list = data.get('groups') or data.get('items') or []
+            valid_groups = [g['name'] for g in groups_list if 'name' in g]
+        
+        # 4. Filtrar grupos solicitados: Solo existentes y NO protegidos
+        # 'users' es asignado por DSM, 'administrators' requiere UI o APIs específicas a veces
+        protected_groups = ['users', 'http', 'ftp', 'backup']
+        requested_groups = [g for g in groups if g in valid_groups and g not in protected_groups]
+        
+        if len(requested_groups) != len(groups):
+            invalid = [g for g in groups if g not in valid_groups]
+            if invalid:
+                logger.warning(f"Ignoring NON-EXISTENT groups for DSM: {invalid}")
+            protected = [g for g in groups if g in protected_groups]
+            if protected:
+                logger.info(f"Skipping AUTO-MANAGED/PROTECTED groups: {protected}")
+
+        # 5. Sincronización de Miembros (API SYNO.Core.User.Group)
+        to_add = [g for g in requested_groups if g not in current_groups]
+        to_remove = [g for g in current_groups if g not in requested_groups and g not in protected_groups]
+        
+        if not to_add and not to_remove:
+            logger.info("No group changes needed.")
+            return True
+
+        logger.info(f"[STEP 2] Batch updating groups for '{username}': Join={to_add}, Leave={to_remove}")
+        
+        # Esta API es la correcta según depuración en vivo del usuario
+        params = {
+            'name': username,
+            'join_group': json.dumps(to_add),
+            'leave_group': json.dumps(to_remove)
+        }
+        
+        resp = conn.request('SYNO.Core.User.Group', 'join', version=1, params=params)
+        logger.debug(f"DSM Response for SYNO.Core.User.Group:join: {resp}")
+        
+        if resp.get('success'):
+            task_id = resp.get('data', {}).get('task_id', 'N/A')
+            logger.info(f"Successfully updated groups for user '{username}' (Task ID: {task_id})")
+            return True
+        else:
+            logger.error(f"DSM RAW GROUP ERROR: {resp}")
+            logger.error(f"Failed to update groups for user {username}")
+            return False
+
+    def _step_set_flags(self, username, info, conn):
+        """PASO 3: Flags de Usuario (Solo campos simples)"""
+        params = {'name': username}
+        has_flags = False
+        
+        if 'cannot_change_password' in info:
+            params['cannot_change_passwd'] = 'true' if info['cannot_change_password'] else 'false'
+            has_flags = True
+            
+        if info.get('expired') is not None:
+            params['expired'] = 'true' if info['expired'] else 'false'
+            has_flags = True
+
+        if not has_flags:
+            return True
+            
+        logger.info(f"[STEP 3] Setting user flags for '{username}'")
+        resp = conn.request('SYNO.Core.User', 'set', version=1, params=params)
+        logger.debug(f"DSM Set Flags response: {resp}")
+        return resp.get('success', False)
+
+    def _step_set_app_privs(self, username, apps_data, conn):
+        """PASO 4: Permisos de Aplicaciones - MÚLTIPLES ESTRATEGIAS DSM 7+"""
+        if not apps_data or not isinstance(apps_data, dict):
+            return True
+            
+        success_count = 0
+        fail_count = 0
+        
+        for app_id, policy in apps_data.items():
+            if policy not in ['allow', 'deny']: 
+                continue
+            
+            logger.info(f"[STEP 4] Setting app '{app_id}' to '{policy}' for user '{username}'")
+            
+            # Convertir allow/deny a valores booleanos
+            allow_bool = (policy == 'allow')
+            
+            # ESTRATEGIA 1: SYNO.Core.AppPriv (API documentada)
+            strategies = [
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 2: SYNO.Core.AppPriv.App (versión específica)
+                {
+                    'api': 'SYNO.Core.AppPriv.App',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 3: Con username en lugar de name
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'username': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': 'true' if allow_bool else 'false'
+                    }
+                },
+                # ESTRATEGIA 4: allow como 1/0 en lugar de true/false
+                {
+                    'api': 'SYNO.Core.AppPriv',
+                    'params': {
+                        'name': username,
+                        'app': app_id,
+                        'is_group': 'false',
+                        'allow': '1' if allow_bool else '0'
+                    }
+                },
+            ]
+            
+            app_success = False
+            for idx, strategy in enumerate(strategies, 1):
+                logger.debug(f"  → Strategy {idx}/{len(strategies)}: {strategy['api']} with params {strategy['params']}")
+                
+                resp = conn.request(strategy['api'], 'set', version=1, params=strategy['params'])
+                
+                if resp.get('success'):
+                    logger.info(f"  ✓ SUCCESS with Strategy {idx} ({strategy['api']})")
+                    app_success = True
+                    break
+                else:
+                    error_info = resp.get('error', {})
+                    logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+            
+            if app_success:
+                success_count += 1
+            else:
+                logger.error(f"[STEP 4] ALL STRATEGIES FAILED for app '{app_id}'")
+                fail_count += 1
+        
+        logger.info(f"[STEP 4] App Permissions: {success_count} success, {fail_count} failed")
+        return fail_count == 0
+
+    def _step_set_folder_perms(self, username, perms_data, conn):
+        """PASO 5: Permisos de Carpetas - MÚLTIPLES ESTRATEGIAS DSM 7+"""
+        if not perms_data or not isinstance(perms_data, dict):
+            return True
+            
+        success_count = 0
+        fail_count = 0
+        
+        for share_name, policy in perms_data.items():
+            if policy not in ['rw', 'ro', 'na']: 
+                continue
+            
+            logger.info(f"[STEP 5] Setting folder '{share_name}' to '{policy}' for user '{username}'")
+            
+            # Múltiples estrategias para compatibilidad con diferentes versiones de DSM
+            strategies = [
+                # ESTRATEGIA 1: Parámetros estándar básicos
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'is_group': 'false',
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 2: Con 'user' en lugar de 'user_name'
+                {
+                    'params': {
+                        'name': share_name,
+                        'user': username,
+                        'is_group': 'false',
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 3: Con 'share_name' explícito + group_name vacío
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'group_name': '',
+                        'is_group': 'false',
+                        'share_name': share_name,
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 4: Con path en formato de ruta
+                {
+                    'params': {
+                        'name': share_name,
+                        'user_name': username,
+                        'is_group': 'false',
+                        'path': f"/{share_name}",
+                        'privilege': policy
+                    }
+                },
+                # ESTRATEGIA 5: Usando 'type' en lugar de 'is_group'
+                {
+                    'params': {
+                        'name': share_name,
+                        'user': username,
+                        'type': 'user',
+                        'privilege': policy
+                    }
+                },
+            ]
+            
+            folder_success = False
+            for idx, strategy in enumerate(strategies, 1):
+                logger.debug(f"  → Strategy {idx}/{len(strategies)}: SYNO.Core.Share.Permission with {strategy['params']}")
+                
+                resp = conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=strategy['params'])
+                
+                if resp.get('success'):
+                    logger.info(f"  ✓ SUCCESS with Strategy {idx}")
+                    folder_success = True
+                    break
+                else:
+                    error_info = resp.get('error', {})
+                    logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+            
+            if folder_success:
+                success_count += 1
+            else:
+                logger.error(f"[STEP 5] ALL STRATEGIES FAILED for folder '{share_name}'")
+                fail_count += 1
+        
+        logger.info(f"[STEP 5] Folder Permissions: {success_count} success, {fail_count} failed")
+        return fail_count == 0
+
+    def _step_set_quotas(self, username, quota_data, conn):
+        """PASO 6: Cuotas de Almacenamiento - MÚLTIPLES ESTRATEGIAS DSM 7+"""
+        if not quota_data or not isinstance(quota_data, dict):
+            return True
+            
+        success_count = 0
+        fail_count = 0
+        
+        for vol_path, q_info in quota_data.items():
             try:
-                # Intentamos 'set' primero (estándar en algunas versiones para actualizar)
-                resp_up = active_conn.request('SYNO.Core.User', 'set', version=1, params=update_params)
-                if not resp_up.get('success'):
-                    # Fallback a 'update'
-                    resp_up = active_conn.request('SYNO.Core.User', 'update', version=1, params=update_params)
+                size_mb = int(q_info.get('size', 0))
+                unit = q_info.get('unit', 'MB')
+                if unit == 'GB': size_mb *= 1024
+                elif unit == 'TB': size_mb *= 1024 * 1024
                 
-                if resp_up.get('success'): 
-                    results['steps'].append('Advanced Settings Applied')
-                else: 
-                    results['errors'].append(f"Settings update failed: {resp_up}")
-            except Exception as e: 
-                results['errors'].append(f"Update exception: {str(e)}")
+                # Asegurar que vol_path empiece con /
+                if not vol_path.startswith('/'):
+                    vol_path = f'/{vol_path}'
+                
+                logger.info(f"[STEP 6] Setting quota on '{vol_path}' to {size_mb}MB for user '{username}'")
+                
+                # Múltiples estrategias para cuotas
+                strategies = [
+                    # ESTRATEGIA 1: Parámetros estándar con type='user'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 2: Con 'username' en lugar de 'name'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'username': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 3: Con 'user' en lugar de 'name'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'user': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 4: Con 'vol_path' en lugar de 'volume_path'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'vol_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 5: Con 'quota_size' en lugar de 'size_limit'
+                    {
+                        'method': 'set',
+                        'params': {
+                            'type': 'user',
+                            'name': username,
+                            'volume_path': vol_path,
+                            'quota_size': size_mb
+                        }
+                    },
+                    # ESTRATEGIA 6: Sin 'type', solo datos directos
+                    {
+                        'method': 'set',
+                        'params': {
+                            'name': username,
+                            'volume_path': vol_path,
+                            'size_limit': size_mb
+                        }
+                    },
+                ]
+                
+                quota_success = False
+                for idx, strategy in enumerate(strategies, 1):
+                    logger.debug(f"  → Strategy {idx}/{len(strategies)}: method={strategy['method']}, params={strategy['params']}")
+                    
+                    resp = conn.request('SYNO.Core.Quota', strategy['method'], version=1, params=strategy['params'])
+                    
+                    if resp.get('success'):
+                        logger.info(f"  ✓ SUCCESS with Strategy {idx}")
+                        quota_success = True
+                        break
+                    else:
+                        error_info = resp.get('error', {})
+                        logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+                
+                if quota_success:
+                    success_count += 1
+                else:
+                    logger.error(f"[STEP 6] ALL STRATEGIES FAILED for volume '{vol_path}'")
+                    fail_count += 1
+                    
+            except Exception as e:
+                logger.error(f"[STEP 6] Exception processing quota for {vol_path}: {e}")
+                fail_count += 1
+        
+        logger.info(f"[STEP 6] Quotas: {success_count} success, {fail_count} failed")
+        return fail_count == 0
+
+    def _step_set_speed_limit(self, username, speed_data, conn):
+        """PASO 7: Límites de Velocidad - MÚLTIPLES ESTRATEGIAS DSM 7+"""
+        if not speed_data or not isinstance(speed_data, dict):
+            return True
+            
+        fs = speed_data.get('File Station', {})
+        if not fs: 
+            return True
+    
+        logger.info(f"[STEP 7] Setting speed limits for '{username}'")
+        
+        def to_kb(val, unit):
+            try:
+                v = int(val)
+                return v * 1024 if unit == 'MB' else v
+            except:
+                return 0
+
+        # Calcular valores
+        if fs.get('mode') == 'limit':
+            upload_kb = to_kb(fs.get('up', 0), fs.get('up_unit', 'KB'))
+            download_kb = to_kb(fs.get('down', 0), fs.get('down_unit', 'KB'))
+        elif fs.get('mode') == 'unlimited':
+            upload_kb = 0
+            download_kb = 0
+        else:
+            return True  # No hay configuración válida
+        
+        logger.debug(f"  Calculated: upload={upload_kb}KB/s, download={download_kb}KB/s")
+        
+        # Múltiples estrategias para límites de velocidad
+        strategies = [
+            # ESTRATEGIA 1: SYNO.Core.BandwidthControl (API dedicada según documentación)
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'user': username,
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb,
+                    'enable': 'true'
+                }
+            },
+            # ESTRATEGIA 2: SYNO.Core.BandwidthControl con 'username'
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'username': username,
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb
+                }
+            },
+            # ESTRATEGIA 3: SYNO.Core.User con speed_limit_up/down
+            {
+                'api': 'SYNO.Core.User',
+                'method': 'set',
+                'params': {
+                    'name': username,
+                    'speed_limit_up': upload_kb,
+                    'speed_limit_down': download_kb
+                }
+            },
+            # ESTRATEGIA 4: SYNO.Core.User con username en lugar de name
+            {
+                'api': 'SYNO.Core.User',
+                'method': 'set',
+                'params': {
+                    'username': username,
+                    'speed_limit_up': upload_kb,
+                    'speed_limit_down': download_kb
+                }
+            },
+            # ESTRATEGIA 5: SYNO.Core.BandwidthControl con application_id
+            {
+                'api': 'SYNO.Core.BandwidthControl',
+                'method': 'set',
+                'params': {
+                    'user_id': username,
+                    'application_id': 'SYNO.SDS.FileStation',
+                    'upload_limit': upload_kb,
+                    'download_limit': download_kb
+                }
+            },
+        ]
+        
+        for idx, strategy in enumerate(strategies, 1):
+            logger.debug(f"  → Strategy {idx}/{len(strategies)}: {strategy['api']}.{strategy['method']} with {strategy['params']}")
+            
+            resp = conn.request(strategy['api'], strategy['method'], version=1, params=strategy['params'])
+            
+            if resp.get('success'):
+                logger.info(f"  ✓ SUCCESS with Strategy {idx} ({strategy['api']})")
+                return True
+            else:
+                error_info = resp.get('error', {})
+                logger.warning(f"  ✗ Strategy {idx} failed: code={error_info.get('code')}, error={error_info}")
+        
+        logger.error(f"[STEP 7] ALL STRATEGIES FAILED for speed limits")
+        return False
+
+    def apply_user_settings(self, username, data, results, conn):
+        """Orquestador secuencial (DSM 7 Compatible - Validación Estricta)"""
+        info = data.get('info', {})
+        
+        # 1. Grupos (Paso Estructural - Si falla, abortamos para evitar inconsistencias)
+        if 'groups' in data:
+            if self._step_assign_groups(username, data['groups'], conn):
+                results['steps'].append('Groups Assigned')
+            else:
+                results['errors'].append('Critical: Group assignment failed. Aborting further settings.')
+                return results
+
+        # 2. Flags de Usuario
+        if self._step_set_flags(username, info, conn):
+            results['steps'].append('Flags Set')
+        else:
+            results['errors'].append('User flags update failed')
+
+        # 3. Aplicaciones (Control de herencia DSM 7)
+        if 'apps' in data:
+            apps_raw = data['apps']
+            apps_to_apply = {}
+            if isinstance(apps_raw, dict):
+                apps_to_apply = apps_raw.copy()
+            elif isinstance(apps_raw, list):
+                apps_to_apply = {app: 'allow' for app in apps_raw}
+
+            # Opcional: Si tenemos info de permisos de grupos, saltamos redundancias
+            group_perms = self.get_wizard_options().get('group_permissions', {})
+            inherited_apps = {}
+            for g_name in data.get('groups', []):
+                inherited_apps.update(group_perms.get(g_name, {}).get('apps', {}))
+            
+            # Filtrar redundancias que el NAS ignorará
+            final_apps = {}
+            for app_id, policy in apps_to_apply.items():
+                is_allow = (policy == 'allow')
+                if inherited_apps.get(app_id) == is_allow:
+                    logger.info(f"Skipping redundant app privilege for {app_id} (Inherited: {is_allow})")
+                    continue
+                final_apps[app_id] = policy
+
+            if final_apps:
+                if self._step_set_app_privs(username, final_apps, conn):
+                    results['steps'].append('App Privileges Applied')
+                else:
+                    results['errors'].append('Some app privileges failed')
+            else:
+                results['steps'].append('App Privileges (All inherited/redundant skip)')
+
+        # 4. Carpetas
+        if 'permissions' in data:
+            if self._step_set_folder_perms(username, data['permissions'], conn):
+                results['steps'].append('Folder Permissions Applied')
+            else:
+                results['errors'].append('Some folder permissions failed')
+
+        # 5. Cuotas
+        if 'quota' in data:
+            if self._step_set_quotas(username, data['quota'], conn):
+                results['steps'].append('Quotas Applied')
+            else:
+                results['errors'].append('Some quotas failed')
+
+        # 6. Velocidad
+        if 'speed' in data:
+            if self._step_set_speed_limit(username, data['speed'], conn):
+                results['steps'].append('Speed Limits Applied')
+            else:
+                results['errors'].append('Speed limit setting failed')
 
         return results
 
@@ -409,37 +863,7 @@ class UserService:
         admin_conn = None
         current_sid = None
         try:
-            # Construir parámetros dinámicamente para evitar enviar strings vacíos
-            # que podrían causar problemas de validación o permisos
-            # Lean Params: Solo enviamos lo mínimo necesario que funcionó en Postman
-            # para evitar que flags opcionales disparen errores de política (105)
-            params = {
-                'name': username,
-                'password': info['password']
-            }
-            real_name = info.get('description') or username
-            params['real_name'] = real_name
-            
-            if info.get('email'):
-                params['email'] = info['email']
-                
-            if info.get('description'):
-                params['description'] = info['description']
-                
-            # Solo activar si el usuario lo marcó explícitamente
-            if info.get('send_notification') is True:
-                params['send_welcome_email'] = 'true'
-            
-            if info.get('cannot_change_password') is True:
-                params['cannot_change_passwd'] = 'true'
-            
-            print("=" * 80)
-            print("CREATING USER WITH DEDICATED ADMIN SESSION (SCOPE='DSM'):")
-            print(f"  params: {params}")
-            print("=" * 80)
-            
-            # Crear conexión dedicada con permisos administrativos (Session: DSM)
-            # La sesión 'FileStation' por defecto no tiene permisos para crear usuarios (Error 105)
+            # Asegurar permisos administrativos (Session: DSM)
             admin_conn = ConnectionService(self.config)
             auth_result = admin_conn.authenticate(session_alias='DSM')
             
@@ -448,42 +872,28 @@ class UserService:
                 return {'success': False, 'message': f"Failed to authenticate as admin: {auth_result.get('message')}"}
             
             current_sid = auth_result.get('sid')
-            logger.info(f"Admin session created successfully. SID: {current_sid[:10]}...")
             
-            # DIAGNÓSTICO: Insertar prueba de lectura antes de escritura
-            print("=" * 80)
-            print("DIAGNOSTICO DE PERMISOS (SYNO.Core.User.list):")
-            try:
-                diag_resp = admin_conn.request('SYNO.Core.User', 'list', version=1, params={'limit': 1})
-                print(f"User List Result: {diag_resp}")
-                if not diag_resp.get('success'):
-                    print(f"[FAIL] FALLO LECTURA DE USUARIOS: {diag_resp}")
-                else:
-                    print(f"[SUCCESS] LECTURA EXITOSA. Total usuarios: {diag_resp.get('data', {}).get('total')}")
-            except Exception as e:
-                print(f"[FAIL] EXCEPCION EN DIAGNOSTICO: {e}")
-            print("=" * 80)
-            
-            logger.info(f"Creating user with params: {params}")
-            # En DSM 7+, el método único y obligatorio es 'create'
-            resp = admin_conn.request('SYNO.Core.User', 'create', version=1, params=params)
+            # 1. Crear Usuario (Básico únicamente)
+            resp = self._step_create_user(username, info['password'], info, admin_conn)
             
             if not resp.get('success'):
                 error_code = resp.get('error', {}).get('code', 'Unknown')
-                return {'success': False, 'message': f"Synology Error: {error_code}"}
+                return {'success': False, 'message': f"Synology Error {error_code} on Create"}
                 
             results['steps'].append('User Created')
+            
+            # DSM 7 no es transaccional. Esperar un instante para que el sistema propague el nuevo usuario
+            import time
+            time.sleep(2.5)
 
-            # Paso 2: Aplicar configuraciones avanzadas (DENTRO del bloque admin)
+            # Pasos 2-7: Aplicar configuraciones avanzadas (Granular)
             self.apply_user_settings(username, data, results, conn=admin_conn)
             
         except Exception as e:
             logger.exception(f"Exception creating user: {str(e)}")
             return {'success': False, 'message': f'Exception: {str(e)}'}
         finally:
-            # Siempre cerrar la sesión administrativa dedicada
             if admin_conn and current_sid:
-                logger.info("Closing admin session...")
                 admin_conn.logout(current_sid, session_alias='DSM')
 
         # Paso 3: Evaluar éxito global
@@ -508,40 +918,50 @@ class UserService:
         
         if not username: return {'success': False, 'message': 'Username is required'}
 
-        # Paso 1: Update BaseInfo (Usando sesión administrativa para evitar Error 105)
-        admin_conn = ConnectionService(self.config)
-        auth_result = admin_conn.authenticate(session_alias='DSM')
-        
-        if not auth_result.get('success'):
-            return {'success': False, 'message': f"Failed to authenticate as admin: {auth_result.get('message')}"}
-        
-        current_sid = auth_result.get('sid')
-        
+        # Proceso de actualización modular (DSM 7)
+        admin_conn = None
+        current_sid = None
         try:
-            params = {'name': username}
-            if info.get('email'): params['email'] = info['email']
-            if info.get('description'): params['description'] = info['description']
-            if info.get('password'): params['password'] = info['password']
+            admin_conn = ConnectionService(self.config)
+            auth_result = admin_conn.authenticate(session_alias='DSM')
+            if not auth_result.get('success'):
+                return {'success': False, 'message': "Admin auth failed"}
             
-            # El método estándar para actualizar suele ser 'set' o 'update'
-            resp = admin_conn.request('SYNO.Core.User', 'set', version=1, params=params)
-            if not resp.get('success'):
-                 # Fallback a 'update'
-                 resp = admin_conn.request('SYNO.Core.User', 'update', version=1, params=params)
-                 if not resp.get('success'):
-                    results['errors'].append(f"Base info update failed: {resp}")
-            else:
-                 results['steps'].append('Base Info Updated')
+            current_sid = auth_result.get('sid')
+            
+            # ACTUALIZACIÓN BASE Y REFRESCO DE CONTEXTO (OBLIGATORIO EN DSM 7)
+            base_params = {'name': username}
+            
+            if info.get('email'):
+                base_params['email'] = info['email']
+            if info.get('description'):
+                base_params['description'] = info['description']
+            if info.get('real_name'): # Mantener real_name sincronizado
+                base_params['real_name'] = info['real_name']
 
-            # Paso 2: Aplicar configuraciones avanzadas
+            # Siempre ejecutamos el set para "despertar" el contexto de DSM 7
+            resp_base = admin_conn.request('SYNO.Core.User', 'set', version=1, params=base_params)
+            logger.debug(f"DSM Context/Base Update response: {resp_base}")
+            
+            if resp_base.get('success'):
+                results['steps'].append('User Context Refreshed / Base Updated')
+            else:
+                results['errors'].append(f"Basic update failed: {resp_base.get('error')}")
+
+            # Ejecutar actualización granular reutilizando el orquestador
             self.apply_user_settings(username, data, results, conn=admin_conn)
             
+            # Si hay cambio de password, es un flag independiente en User.set
+            if info.get('password'):
+                admin_conn.request('SYNO.Core.User', 'set', version=1, 
+                                 params={'name': username, 'password': info['password']})
+                results['steps'].append('Password Updated')
+
         except Exception as e:
             results['errors'].append(f"Update exception: {str(e)}")
         finally:
             if admin_conn and current_sid:
                 admin_conn.logout(current_sid, session_alias='DSM')
-        
         results['success'] = len(results['errors']) == 0
         if not results['success']:
              results['message'] = f"Update completed with errors: {'; '.join(results['errors'])}"
