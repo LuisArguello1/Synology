@@ -136,7 +136,7 @@ class ConnectionService:
                 
                 return {
                     'success': True,
-                    'message': f'✅ Conexión exitosa. API Auth disponible (v{max_ver})',
+                    'message': f'Conexión exitosa. API Auth disponible (v{max_ver})',
                     'data': self.api_paths
                 }
             else:

@@ -104,12 +104,12 @@ class MenuService:
         except:
             file_services_url = '#'
             
-        menu.append({
-            'name': 'Servicios de Archivos',
-            'icon': 'network-wired',
-            'url': file_services_url,
-            'active': current_path.startswith('/servicios-archivos/')
-        })
+        # menu.append({
+        #     'name': 'Servicios de Archivos',
+        #     'icon': 'network-wired',
+        #     'url': file_services_url,
+        #     'active': current_path.startswith('/servicios-archivos/')
+        # })
         
         # Sección de Configuración
         menu.append({'separator': True, 'label': 'CONFIGURACIÓN'})
