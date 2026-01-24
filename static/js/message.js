@@ -50,7 +50,7 @@ function showMessage(text, type = 'info') {
         const messageElement = document.getElementById(`message-${messageId}`);
         if (messageElement) {
             messageElement.style.opacity = '1';
-            messageElement.style.animation = 'message-slide-in 0.3s forwards';
+            messageElement.style.animation = 'message-slide-in 0.2s forwards';
             
             // Añadir evento para pausar la barra de progreso al pasar el mouse
             messageElement.addEventListener('mouseenter', function() {
