@@ -95,6 +95,8 @@ class GroupService:
                      # Normalizar campos si la API devuelve diferentes nombres
                      if 'group_name' in g and 'name' not in g: g['name'] = g['group_name']
                      if 'desc' in g and 'description' not in g: g['description'] = g['desc']
+                     # Asegurar que is_system sea booleano
+                     g['is_system'] = bool(g.get('is_system', False))
                 
                 logger.info(f"Successfully listed {len(groups_list)} groups from NAS")
                 return groups_list
@@ -143,6 +145,8 @@ class GroupService:
                     # Normalización Básica
                     if 'group_name' in group_data and 'name' not in group_data: group_data['name'] = group_data['group_name']
                     if 'desc' in group_data and 'description' not in group_data: group_data['description'] = group_data['desc']
+                    # Asegurar que is_system sea booleano
+                    group_data['is_system'] = bool(group_data.get('is_system', False))
                     
                     # 1. MIEMBROS (Dedicated call)
                     members = []
@@ -261,7 +265,7 @@ class GroupService:
                 api='SYNO.Core.Group',
                 method='delete',
                 version=1,
-                params={'name': name}
+                params={'name': name, 'group_name': name}
             )
         finally:
             if admin_conn and current_sid:
@@ -274,113 +278,143 @@ class GroupService:
         """
         active_conn = conn or self.connection
         
-        # 1. Asignar Permisos de Carpetas
-        folder_perms = data.get('folder_permissions', {})
-        for share_name, perm in folder_perms.items():
-            # Synology usa 'na' para No Access, 'ro' para Read Only y 'rw' para Read/Write
-            if perm in ['ro', 'rw', 'na']:
-                perm_params = {
-                    'name': name,
-                    'user_name': '', # Vacío para grupos
-                    'group_name': name,
-                    'is_group': 'true',
-                    'privilege': perm,
-                    'share_name': share_name
+        # 1. Asignar Permisos de Carpetas (Bulk Call)
+        folder_perms_data = data.get('folder_permissions', {})
+        if folder_perms_data:
+            permissions_list = []
+            for share_name, perm in folder_perms_data.items():
+                if perm in ['ro', 'rw', 'na']:
+                    permissions_list.append({
+                        'share_name': share_name,
+                        'privilege': perm
+                    })
+            
+            if permissions_list:
+                logger.info(f"Setting bulk folder permissions for group {name}")
+                # RackStation Compatibility: Send both 'group' and 'name'
+                params = {
+                    'group': name,
+                    'name': name, # Some versions require 'name'
+                    'permissions': json.dumps(permissions_list)
                 }
-                # Intentamos con 'share_name' y con 'name' (path-style) para mayor compatibilidad
-                try:
-                    resp = active_conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=perm_params)
-                    if not resp.get('success'):
-                        # Fallback: intentar estilo de ruta
-                        perm_params['name'] = share_name
-                        active_conn.request('SYNO.Core.Share.Permission', 'set', version=1, params=perm_params)
-                except Exception as e:
-                    logger.error(f"Error setting folder permission for {share_name}: {e}")
+                resp = active_conn.request('SYNO.Core.Share.Permission', 'set_share_permissions', version=1, params=params)
+                logger.debug(f"Share Permission Response: {resp}")
 
         # 2. Asignar Permisos de Aplicaciones
         app_perms = data.get('app_permissions', {}) 
-        for app_name, access in app_perms.items():
+        for app_id, access in app_perms.items():
             if access in ['allow', 'deny']:
-                app_params = {
+                params = {
                     'name': name, 
-                    'app': app_name, 
+                    'group': name, # Redundancy
+                    'app': app_id, 
                     'is_group': 'true',
                     'allow': 'true' if access == 'allow' else 'false'
                 }
-                active_conn.request('SYNO.Core.AppPriv', 'set', version=1, params=app_params)
+                active_conn.request('SYNO.Core.AppPriv', 'set', version=1, params=params)
 
-        # 3. Configurar Cuotas
-        update_params = {'name': name}
-        has_updates = False
-        quotas = data.get('quotas', {})
-        quota_list = []
-        for vol_id, q_data in quotas.items():
-            if q_data.get('is_unlimited'): continue
+        # 3. Configurar Cuotas (Bulk Call)
+        quotas_data = data.get('quotas', {})
+        if quotas_data:
+            share_quotas = []
+            for share_name, q_data in quotas_data.items():
+                amount = int(q_data.get('amount', 0))
+                unit = q_data.get('unit', 'MB')
+                size_mb = amount
+                if unit == 'GB': size_mb *= 1024
+                elif unit == 'TB': size_mb *= 1024 * 1024
+                
+                share_quotas.append({
+                    "share_name": share_name,
+                    "quota_limit": size_mb 
+                })
             
-            amount = int(q_data.get('amount', 0))
-            unit = q_data.get('unit', 'MB')
-            size_mb = amount
-            if unit == 'GB': size_mb *= 1024
-            elif unit == 'TB': size_mb *= 1024 * 1024
-            
-            vol_path = str(vol_id) 
-            if not vol_path.startswith('/'): vol_path = f'/{vol_path}'
-            
-            quota_list.append({
-                "volume_path": vol_path,
-                "size_limit": size_mb 
-            })
-        
-        if quota_list:
-            update_params['quota_limit'] = json.dumps(quota_list)
-            has_updates = True
+            if share_quotas:
+                logger.info(f"Setting bulk quotas for group {name}")
+                params = {
+                    'group': name,
+                    'name': name, # Redundancy
+                    'share_quotas': json.dumps(share_quotas)
+                }
+                resp = active_conn.request('SYNO.Core.Quota', 'set_share_quota', version=1, params=params)
+                logger.debug(f"Quota Response: {resp}")
 
-        if has_updates:
-            active_conn.request('SYNO.Core.Group', 'update', version=1, params=update_params)
+        # 4. Configurar Límites de Velocidad (Speed Limit)
+        speed_data = data.get('speed_limits', {})
+        for protocol, limits in speed_data.items():
+            if limits.get('mode') == 'limit':
+                upload = int(limits.get('up', 0))
+                download = int(limits.get('down', 0))
+                # Convert to KB if needed (UI usually sends KB or MB)
+                if limits.get('up_unit') == 'MB': upload *= 1024
+                if limits.get('down_unit') == 'MB': download *= 1024
+                
+                active_conn.request('SYNO.Core.BandwidthControl', 'set_speed_limit', version=1, params={
+                    'group': name,
+                    'protocol': protocol,
+                    'upload_limit': upload,
+                    'download_limit': download
+                })
+            elif limits.get('mode') == 'unlimited':
+                active_conn.request('SYNO.Core.BandwidthControl', 'set_speed_limit', version=1, params={
+                    'group': name,
+                    'protocol': protocol,
+                    'upload_limit': 0,
+                    'download_limit': 0
+                })
 
     def _sync_group_members(self, admin_conn, group_name, members_list):
         """
-        Intenta sincronizar los miembros de un grupo probando varias estrategias de la API.
-        Muchas versiones de DSM son inconsistentes con los nombres de parámetros.
+        Sincroniza los miembros de un grupo usando la lógica exacta descubierta:
+        API: SYNO.Core.Group.Member, method: change
+        Params: add_member (list), remove_member (list)
         """
-        if members_list is None: return True
-        
-        print(f"DEBUG: Syncing members for {group_name}: {members_list}")
-        
-        # 1. Preparar formatos: CSV (Standard) y JSON (Algunas versiones modernas)
-        member_str = ",".join(members_list) if isinstance(members_list, list) else str(members_list)
-        member_json = json.dumps(members_list)
-        
-        # Estrategias de parámetros comunes
-        strategies = [
-            # Estrategias con string (CSV)
-            {'g': 'group', 'm': 'member',  'fmt': member_str, 'method': 'set'},
-            {'g': 'group', 'm': 'members', 'fmt': member_str, 'method': 'set'},
-            {'g': 'name',  'm': 'member',  'fmt': member_str, 'method': 'set'},
-            {'g': 'group', 'm': 'user',    'fmt': member_str, 'method': 'set'},
-            # Estrategias con JSON
-            {'g': 'group', 'm': 'member',  'fmt': member_json, 'method': 'set'},
-            {'g': 'group', 'm': 'user',    'fmt': member_json, 'method': 'set'},
-        ]
-        
-        # Intentamos con 'set' primero
-        for s in strategies:
-            params = {s['g']: group_name, s['m']: s['fmt']}
-            print(f"DEBUG: Trial SYNO.Core.Group.Member:{s['method']} ({s['g']}={group_name}, {s['m']}=...)")
-            resp = admin_conn.request('SYNO.Core.Group.Member', s['method'], version=1, params=params)
-            if resp.get('success'):
-                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']} ({s['method']})")
+        try:
+            logger.info(f"Syncing members for group {group_name}. Target: {members_list}")
+            
+            # 1. Obtener miembros actuales para calcular la diferencia
+            current_members = []
+            m_resp = admin_conn.request('SYNO.Core.Group.Member', 'list', version=1, params={'group': group_name})
+            if m_resp.get('success'):
+                m_data = m_resp.get('data', {})
+                raw = m_data.get('users') or m_data.get('items') or []
+                current_members = [m.get('name') if isinstance(m, dict) else str(m) for m in raw]
+            
+            # 2. Calcular quiénes añadir y quiénes quitar
+            to_add = [m for m in members_list if m not in current_members]
+            to_remove = [m for m in current_members if m not in members_list]
+            
+            logger.debug(f"Members diff for {group_name}: add={to_add}, remove={to_remove}")
+            
+            if not to_add and not to_remove:
+                logger.info("No changes in membership needed.")
                 return True
 
-        # Fallback a 'add' si 'set' no funcionó
-        for s in strategies:
-            params = {s['g']: group_name, s['m']: s['fmt']}
-            resp = admin_conn.request('SYNO.Core.Group.Member', 'add', version=1, params=params)
+            # 3. Ejecutar el cambio con el formato exacto de RackStation
+            # Importante: Synology espera que las listas sean strings JSON en entry.cgi
+            params = {
+                'group': group_name,
+                'name': group_name, # Redundancia por si acaso
+                'add_member': json.dumps(to_add),
+                'remove_member': json.dumps(to_remove)
+            }
+            
+            resp = admin_conn.request('SYNO.Core.Group.Member', 'change', version=1, params=params)
+            logger.debug(f"change members response: {resp}")
+            
             if resp.get('success'):
-                print(f"DEBUG: SUCCESS with {s['g']}/{s['m']} (add)")
                 return True
+                
+            # Fallback: Si falla como JSON, intentar enviarlo como está (algunas versiones lo prefieren)
+            params['add_member'] = to_add
+            params['remove_member'] = to_remove
+            resp = admin_conn.request('SYNO.Core.Group.Member', 'change', version=1, params=params)
+            
+            return resp.get('success', False)
 
-        return False
+        except Exception as e:
+            logger.error(f"Error in _sync_group_members: {e}")
+            return False
 
     def create_group(self, data):
         """Orquestador de CREACIÓN con permisos administrativos"""
