@@ -95,8 +95,6 @@ class GroupService:
                      # Normalizar campos si la API devuelve diferentes nombres
                      if 'group_name' in g and 'name' not in g: g['name'] = g['group_name']
                      if 'desc' in g and 'description' not in g: g['description'] = g['desc']
-                     # Normalización de grupo de sistema
-                     g['is_system'] = g.get('is_system') or g.get('is_sys') or (g.get('name') in ['administrators', 'users'])
                 
                 logger.info(f"Successfully listed {len(groups_list)} groups from NAS")
                 return groups_list
@@ -145,8 +143,6 @@ class GroupService:
                     # Normalización Básica
                     if 'group_name' in group_data and 'name' not in group_data: group_data['name'] = group_data['group_name']
                     if 'desc' in group_data and 'description' not in group_data: group_data['description'] = group_data['desc']
-                    # Normalización de grupo de sistema
-                    group_data['is_system'] = group_data.get('is_system') or group_data.get('is_sys') or (group_data.get('name') in ['administrators', 'users'])
                     
                     # 1. MIEMBROS (Dedicated call)
                     members = []
@@ -265,7 +261,7 @@ class GroupService:
                 api='SYNO.Core.Group',
                 method='delete',
                 version=1,
-                params={'name': name, 'group_name': name}
+                params={'name': name}
             )
         finally:
             if admin_conn and current_sid:
